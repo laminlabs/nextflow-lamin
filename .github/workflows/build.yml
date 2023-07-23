@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       GITHUB_EVENT_NAME: ${{ github.event_name }}
+      NXF_ANSI_LOG: false
     strategy:
       fail-fast: false
       matrix:
@@ -36,6 +37,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
           cache-dependency-path: ".github/workflows/build.yml" # See dependencies below
+
+      - name: Install Nextflow
+        uses: nf-core/setup-nextflow@v1
+        with:
+          version: "$23.04.2"
 
       - uses: actions/cache@v3
         with:
