@@ -1,0 +1,5 @@
+project_name: nextflow-lamin-usecases
+description: Using Lamin with Nextflow
+project_slug: nextflow-lamin-usecases
+repository_name: nextflow-lamin-usecases
+package_name: nextflow_lamin_usecases
