@@ -38,11 +38,6 @@ jobs:
           cache: "pip"
           cache-dependency-path: ".github/workflows/build.yml" # See dependencies below
 
-      - name: Install Nextflow
-        uses: nf-core/setup-nextflow@v1
-        with:
-          version: "latest-everything"
-
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pre-commit
