@@ -106,3 +106,10 @@ docs/nextflow_lamin_usecases.*
 lamin_sphinx
 docs/conf.py
 _docs_tmp*
+
+# Nextflow
+.nextflow
+work
+fetch-ngs-results
+rna-seq-results
+differentialabundance-results
