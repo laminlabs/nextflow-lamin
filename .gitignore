@@ -108,8 +108,8 @@ docs/conf.py
 _docs_tmp*
 
 # Nextflow
-.nextflow
+.nextflow*
 work
-fetch-ngs-results
+fetchngs-results
 rna-seq-results
 differentialabundance-results
