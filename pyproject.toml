@@ -9,6 +9,7 @@ readme = "README.md"
 dynamic = ["version", "description"]
 dependencies = [
     "nbproject",
+
 ]
 
 [project.urls]
@@ -20,6 +21,9 @@ dev = [
     "nox",
     "pytest>=6.0",
     "pytest-cov",
+    "laminci",
+    "nbproject-test",
+    "lamindb"
 ]
 
 [tool.black]

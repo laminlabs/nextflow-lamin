@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import lamin_logger as logger
 import nbproject_test as test
 
 
@@ -12,5 +11,4 @@ def test_notebooks():
         # these are the notebook testpaths
         if not str(check_folder).endswith(("guide", "faq")):
             continue
-        logger.debug(f"\n{check_folder}")
         test.execute_notebooks(check_folder, write=True)
