@@ -24,6 +24,7 @@ dev = [
     "pytest-cov",
     "laminci",
     "nbproject-test",
+    "psycopg2-binary"
 ]
 
 [tool.black]
