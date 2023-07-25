@@ -111,5 +111,6 @@ _docs_tmp*
 .nextflow*
 work
 fetchngs-results
+execution_report.html
 rna-seq-results
 differentialabundance-results
