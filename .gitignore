@@ -113,4 +113,5 @@ work
 fetchngs-results
 execution_report.html
 rna-seq-results
+multiqc_report.html
 differentialabundance-results
