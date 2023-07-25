@@ -10,7 +10,8 @@ dynamic = ["version", "description"]
 dependencies = [
     "nbproject",
     "lamindb",
-    "lnschema_bionty"
+    "lnschema_bionty",
+    "lnschema-lamin1"
 ]
 
 [project.urls]
