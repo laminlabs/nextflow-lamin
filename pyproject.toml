@@ -11,7 +11,7 @@ dependencies = [
     "nbproject",
     "lamindb[bionty]==0.48a3",
     "lnschema_bionty",
-    "lnschema-lamin1==0.22a2"
+    "lnschema-lamin1 @ git+https://github.com/laminlabs/lnschema-lamin1@main"
 ]
 
 [project.urls]
