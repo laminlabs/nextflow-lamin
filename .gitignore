@@ -106,6 +106,7 @@ docs/nextflow_lamin_usecases.*
 lamin_sphinx
 docs/conf.py
 _docs_tmp*
+*lndb
 
 # Nextflow
 .nextflow*
