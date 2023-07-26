@@ -9,7 +9,7 @@ readme = "README.md"
 dynamic = ["version", "description"]
 dependencies = [
     "nbproject",
-    "lamindb[bionty]==0.48a3",
+    "lamindb @ git+https://github.com/laminlabs/lamindb@main",
     "lnschema_bionty",
     "lnschema-lamin1 @ git+https://github.com/laminlabs/lnschema-lamin1@main"
 ]
