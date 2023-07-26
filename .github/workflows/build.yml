@@ -43,6 +43,11 @@ jobs:
         with:
           version: "latest-stable"
 
+      - name: Run pipelines
+        run: |
+          nextflow run nf-core/fetchngs -r 1.9 --nf_core_pipeline=rnaseq -profile test,docker --outdir fetchngs-results -resume
+          nextflow run nf-core/rnaseq -r 3.11.2 -profile test,docker --outdir rna-seq-results -resume
+
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pre-commit
