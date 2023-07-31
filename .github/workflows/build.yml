@@ -45,8 +45,10 @@ jobs:
 
       - name: Run pipelines
         run: |
-          nextflow run nf-core/fetchngs --nf_core_pipeline=rnaseq -profile test,docker --outdir fetchngs-results -resume
           nextflow run nf-core/rnaseq -r 3.11.2 -profile test,docker --outdir rna-seq-results -resume
+
+      - name: Tree
+        run: tree
 
       - uses: actions/cache@v3
         with:
