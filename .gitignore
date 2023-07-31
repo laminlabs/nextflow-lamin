@@ -113,6 +113,8 @@ _docs_tmp*
 work
 fetchngs-results
 execution_report.html
+nextflow_rna_seq
 rna-seq-results
 multiqc_report.html
 differentialabundance-results
+test-datasets
