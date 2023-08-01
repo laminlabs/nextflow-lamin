@@ -9,8 +9,7 @@ readme = "README.md"
 dynamic = ["version", "description"]
 dependencies = [
     "nbproject",
-    "lamindb",
-    "lnschema_bionty"
+    "lamindb[bionty,aws]",
 ]
 
 [project.urls]
@@ -24,6 +23,7 @@ dev = [
     "pytest-cov",
     "laminci",
     "nbproject-test",
+    "psycopg2-binary"
 ]
 
 [tool.black]
