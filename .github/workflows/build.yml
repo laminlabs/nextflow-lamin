@@ -43,13 +43,6 @@ jobs:
         with:
           version: "latest-stable"
 
-      - name: Run pipelines
-        run: |
-          nextflow run nf-core/rnaseq -r 3.11.2 -profile test,docker --outdir rna-seq-results -resume
-
-      - name: Tree
-        run: tree
-
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pre-commit
