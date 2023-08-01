@@ -49,9 +49,6 @@ jobs:
           path: rna-seq-results
           key: ${{ runner.os }}-nextflow
 
-      - name: Run nf-core rnaseq
-        run: nextflow run nf-core/rnaseq -r 3.11.2 -profile test,docker --outdir rna-seq-results -name lamind_rnaseq -resume
-
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pre-commit
