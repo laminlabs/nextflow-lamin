@@ -43,9 +43,11 @@ jobs:
         with:
           version: "latest-stable"
 
-      - name: Run pipelines
-        run: |
-          nextflow run nf-core/rnaseq -r 3.11.2 -profile test,docker --outdir rna-seq-results -name lamind_rnaseq-resume
+      - name: Cache Nextflow output
+        uses: actions/cache@v2
+        with:
+          path: rna-seq-results
+          key: ${{ runner.os }}-nextflow
 
       - uses: actions/cache@v3
         with:
