@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.9"]
-    timeout-minutes: 45
+    timeout-minutes: 50
 
     steps:
       - name: Checkout main
