@@ -46,7 +46,7 @@ jobs:
       - name: Cache Nextflow output
         uses: actions/cache@v2
         with:
-          path: rna-seq-results
+          path: docs/guide/nextflow_rna_seq/rna-seq-results
           key: ${{ runner.os }}-nextflow
 
       - uses: actions/cache@v3
@@ -90,6 +90,3 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-
-      - name: tree
-        run: tree
