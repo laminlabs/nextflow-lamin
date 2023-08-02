@@ -47,7 +47,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: docs/guide/nextflow_rna_seq/rna-seq-results
-          key: ${{ runner.os }}-nextflow
+          key: ${{ runner.os }}-nextflow-rna-seq-results
 
       - uses: actions/cache@v3
         with:
