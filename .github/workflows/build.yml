@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.9"]
-    timeout-minutes: 90
+    timeout-minutes: 50
 
     steps:
       - name: Checkout main
@@ -46,8 +46,8 @@ jobs:
       - name: Cache Nextflow output
         uses: actions/cache@v2
         with:
-          path: rna-seq-results
-          key: ${{ runner.os }}-nextflow
+          path: docs/guide/nextflow_rna_seq/rna-seq-results
+          key: ${{ runner.os }}-nextflow-rna-seq-results
 
       - uses: actions/cache@v3
         with:
