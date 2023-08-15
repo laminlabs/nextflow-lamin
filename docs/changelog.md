@@ -3,6 +3,7 @@
 <!-- prettier-ignore -->
 Name | PR | Developer | Date | Version
 --- | --- | --- | --- | ---
+:sparkles: Enable nb building & new curation | [7](https://github.com/laminlabs/nextflow-lamin-usecases/pull/7) | [Zethson](https://github.com/Zethson) | 2023-08-15 |
 New API | [6](https://github.com/laminlabs/nextflow-lamin-usecases/pull/6) | [Zethson](https://github.com/Zethson) | 2023-08-09 |
 :sparkles: Cache pipeline execution | [5](https://github.com/laminlabs/nextflow-lamin-usecases/pull/5) | [Zethson](https://github.com/Zethson) | 2023-08-01 |
 :sparkles: Add rna-seq | [4](https://github.com/laminlabs/nextflow-lamin-usecases/pull/4) | [Zethson](https://github.com/Zethson) | 2023-08-01 |
