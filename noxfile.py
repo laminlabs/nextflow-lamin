@@ -1,4 +1,5 @@
 import nox
+from laminci import upload_docs_artifact
 from laminci.nox import build_docs, login_testuser1, run_pre_commit, run_pytest
 
 # we'd like to aggregate coverage information across sessions
@@ -19,3 +20,4 @@ def build(session):
     login_testuser1(session)
     run_pytest(session)
     build_docs(session)
+    upload_docs_artifact(aws=True)
