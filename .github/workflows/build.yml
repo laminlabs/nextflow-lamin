@@ -14,37 +14,63 @@ jobs:
       NXF_ANSI_LOG: false
     strategy:
       fail-fast: false
+      matrix:
+        python-version: ["3.9"]
     timeout-minutes: 50
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout main
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v3
+
+      - name: Checkout lndocs
+        uses: actions/checkout@v3
         with:
           repository: laminlabs/lndocs
           ssh-key: ${{ secrets.READ_LNDOCS }}
           path: lndocs
           ref: main
+
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
           cache: "pip"
-          cache-dependency-path: ".github/workflows/build.yml"
-      - uses: nf-core/setup-nextflow@v1
+          cache-dependency-path: ".github/workflows/build.yml" # See dependencies below
+
+      - name: Install Nextflow
+        uses: nf-core/setup-nextflow@v1
         with:
           version: "latest-stable"
+
       - name: Cache Nextflow output
         uses: actions/cache@v2
         with:
           path: docs/guide/nextflow_rna_seq/rna-seq-results
           key: ${{ runner.os }}-nextflow-rna-seq-results
+
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Cache postgres
+        id: cache-postgres
+        uses: actions/cache@v3
+        with:
+          path: ~/postgres.tar
+          key: cache-postgres-0
+      - name: Cache postgres miss
+        if: steps.cache-postgres.outputs.cache-hit != 'true'
+        run: docker pull postgres:latest && docker image save postgres:latest --output ~/postgres.tar
+      - name: Cache postgres use
+        if: steps.cache-postgres.outputs.cache-hit == 'true'
+        run: docker image load --input ~/postgres.tar
       - run: sudo apt-get -y install graphviz
-      - run: pip install -U laminci
+      - name: Install Python dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -U laminci
       - uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
