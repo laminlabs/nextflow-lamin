@@ -8,8 +8,6 @@ authors = [{name = "Lamin Labs", email = "laminlabs@gmail.com"}]
 readme = "README.md"
 dynamic = ["version", "description"]
 dependencies = [
-    "nbproject",
-    "lamindb[bionty,aws]",
 ]
 
 [project.urls]
