@@ -34,11 +34,6 @@ jobs:
       - uses: nf-core/setup-nextflow@v1
         with:
           version: "latest-stable"
-      - name: Cache Nextflow output
-        uses: actions/cache@v2
-        with:
-          path: docs/guide/nextflow_rna_seq/rna-seq-results
-          key: ${{ runner.os }}-nextflow-rna-seq-results
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pre-commit
