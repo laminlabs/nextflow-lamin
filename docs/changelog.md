@@ -3,6 +3,7 @@
 <!-- prettier-ignore -->
 Name | PR | Developer | Date | Version
 --- | --- | --- | --- | ---
+:sparkles: Add nextflow execution ID tracking | [11](https://github.com/laminlabs/nextflow-lamin-usecases/pull/11) | [Zethson](https://github.com/Zethson) | 2023-08-22 |
 👷 Try to simplify build.yml | [9](https://github.com/laminlabs/nextflow-lamin-usecases/pull/9) | [falexwolf](https://github.com/falexwolf) | 2023-08-22 |
 ♻️ Refactor logic in bulk RNA-seq use case | [8](https://github.com/laminlabs/nextflow-lamin-usecases/pull/8) | [falexwolf](https://github.com/falexwolf) | 2023-08-17 |
 :sparkles: Enable nb building & new curation | [7](https://github.com/laminlabs/nextflow-lamin-usecases/pull/7) | [Zethson](https://github.com/Zethson) | 2023-08-15 |
