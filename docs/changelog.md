@@ -3,6 +3,7 @@
 <!-- prettier-ignore -->
 Name | PR | Developer | Date | Version
 --- | --- | --- | --- | ---
+♻️ Simplify docs structure | [16](https://github.com/laminlabs/nextflow-lamin-usecases/pull/16) | [falexwolf](https://github.com/falexwolf) | 2023-09-29 |
 📝 Refactor & debug id capture | [14](https://github.com/laminlabs/nextflow-lamin-usecases/pull/14) | [falexwolf](https://github.com/falexwolf) | 2023-09-01 |
 :sparkles: Simplify | [12](https://github.com/laminlabs/nextflow-lamin-usecases/pull/12) | [Zethson](https://github.com/Zethson) | 2023-08-22 |
 :sparkles: Add nextflow execution ID tracking | [11](https://github.com/laminlabs/nextflow-lamin-usecases/pull/11) | [Zethson](https://github.com/Zethson) | 2023-08-22 |
