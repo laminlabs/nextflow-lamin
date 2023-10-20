@@ -8,7 +8,4 @@ def test_notebooks():
     docs_folder = Path(__file__).parents[1] / "docs/"
 
     for check_folder in docs_folder.glob("./**"):
-        # these are the notebook testpaths
-        if not str(check_folder).endswith(("guide", "faq")):
-            continue
         test.execute_notebooks(check_folder, write=True)
