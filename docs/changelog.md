@@ -3,6 +3,7 @@
 <!-- prettier-ignore -->
 Name | PR | Developer | Date | Version
 --- | --- | --- | --- | ---
+♻️ Remove download transform | [18](https://github.com/laminlabs/nextflow-lamin-usecases/pull/18) | [falexwolf](https://github.com/falexwolf) | 2023-11-24 |
 Add warning | [17](https://github.com/laminlabs/nextflow-lamin-usecases/pull/17) | [Zethson](https://github.com/Zethson) | 2023-10-20 |
 ♻️ Simplify docs structure | [16](https://github.com/laminlabs/nextflow-lamin-usecases/pull/16) | [falexwolf](https://github.com/falexwolf) | 2023-09-29 |
 📝 Refactor & debug id capture | [14](https://github.com/laminlabs/nextflow-lamin-usecases/pull/14) | [falexwolf](https://github.com/falexwolf) | 2023-09-01 |
