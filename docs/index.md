@@ -8,5 +8,6 @@
 :hidden:
 
 nextflow
+nextflow_bulk_rna
 changelog
 ```

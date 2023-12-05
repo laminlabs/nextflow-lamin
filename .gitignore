@@ -118,3 +118,5 @@ rna-seq-results
 multiqc_report.html
 differentialabundance-results
 test-datasets
+nextflow-mcmicro
+exemplar-001
