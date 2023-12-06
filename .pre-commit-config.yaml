@@ -10,6 +10,11 @@ repos:
           )
       - id: check-yaml
       - id: check-added-large-files
+        exclude: |
+          (?x)(
+              nextflow_bulk_rna
+          )
+
   - repo: https://github.com/psf/black
     rev: 22.6.0
     hooks:
@@ -40,7 +45,8 @@ repos:
         exclude: |
           (?x)(
               docs/examples/|
-              docs/notes/
+              docs/notes/|
+              nextflow_bulk_rna
           )
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.1.9
