@@ -9,6 +9,5 @@
 
 mcmicro_01
 mcmicro_02
-nextflow_bulk_rna
 changelog
 ```
