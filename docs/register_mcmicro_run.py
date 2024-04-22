@@ -1,19 +1,12 @@
-import argparse
 from subprocess import getoutput
 
 import lamindb as ln
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-p", "--pipeline-name", required=True)
-parser.add_argument("-v", "--pipeline-version", required=True)
-parser.add_argument("-r", "--pipeline-reference", required=True)
-args = parser.parse_args()
-
 transform = ln.Transform(
-    name=args.pipeline_name,
-    version=args.pipeline_version,
+    name="mcmicro",
+    version="1.0.0",
     type="pipeline",
-    reference=args.pipeline_reference,
+    reference="https://github.com/labsyspharm/mcmicro",
 )
 ln.track(transform=transform)
 run = ln.dev.run_context.run
