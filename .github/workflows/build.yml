@@ -74,4 +74,4 @@ jobs:
         with:
           channel_id: C05FDBBFJ1F
           status: FAILURE
-          color: danger          
+          color: danger
