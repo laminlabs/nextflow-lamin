@@ -107,6 +107,7 @@ lamin_sphinx
 docs/conf.py
 _docs_tmp*
 *lndb
+*.lamindb
 
 # Nextflow
 .nextflow*
