@@ -3,7 +3,7 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "nextflow_lamin_usecases"
+name = "nextflow_lamin"
 authors = [{name = "Lamin Labs", email = "laminlabs@gmail.com"}]
 readme = "README.md"
 dynamic = ["version", "description"]
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.urls]
-Home = "https://github.com/laminlabs/nextflow-lamin-usecases"
+Home = "https://github.com/laminlabs/nextflow-lamin"
 
 [project.optional-dependencies]
 dev = [
@@ -26,7 +26,7 @@ dev = [
 ]
 
 [tool.ruff]
-src = ["nextflow_lamin_usecases"]
+src = ["nextflow_lamin"]
 line-length = 88
 select = [
     "F",  # Errors detected by Pyflakes

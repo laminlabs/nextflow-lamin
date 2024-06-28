@@ -1,3 +1,5 @@
+# mcmicro_exemplar.py
+
 """This script downloads the MCMICRO exemplar data and registers it in LaminDB.
 
 Usage: python mcmicro_exemplar.py exemplar-001
