@@ -42,7 +42,9 @@ transform = ln.Transform(
 run = ln.track(transform=transform)
 run.reference = nextflow_id
 run.reference_type = "nextflow_id"
-run.report = report
+# track the execution report, set visibility to "hidden" to avoid cluttering the artifacts
+report_artifact = ln.Artifact(report, visibility=0, run=False).save()
+run.report = report_artifact
 run.save()
 # optionally, track the pipeline parameters
 run.params.add_values({"name": args.name})
