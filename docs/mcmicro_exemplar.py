@@ -57,9 +57,9 @@ run.params.add_values({"name": args.name})
 # optionally, sync with the git repository
 ln.settings.sync_git_repo = "https://github.com/laminlabs/nextflow-lamin-usecases"
 
-# register mcmicro input data
-mcmicro_input = ln.Artifact.from_dir(args.name)
-ln.save(mcmicro_input)
+# register the downloaded folder
+exemplar_dir = ln.Artifact(args.name)
+ln.save(exemplar_dir)
 
 # optionally, track this python script as source code
 ln.finish()
