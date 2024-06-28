@@ -2,7 +2,7 @@
 
 Import the package::
 
-   import nextflow_lamin_usecases
+   import nextflow_lamin
 
 """
 

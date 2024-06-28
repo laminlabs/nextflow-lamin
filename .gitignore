@@ -102,7 +102,7 @@ ENV/
 
 # Lamin
 _build
-docs/nextflow_lamin_usecases.*
+docs/nextflow_lamin.*
 lamin_sphinx
 docs/conf.py
 _docs_tmp*
@@ -113,7 +113,6 @@ _docs_tmp*
 .nextflow*
 work
 fetchngs-results
-exemplar-001-execution_report.html
 nextflow_rna_seq
 rna-seq-results
 multiqc_report.html
