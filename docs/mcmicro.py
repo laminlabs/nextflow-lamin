@@ -1,3 +1,5 @@
+# mcmicro.py
+
 """This script runs the MCMICRO pipeline and tracks input/output data in LaminDB.
 
 Usage: python mcmicro.py exemplar-001
