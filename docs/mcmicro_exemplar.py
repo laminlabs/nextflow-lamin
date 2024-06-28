@@ -16,7 +16,7 @@ if args.name not in ["exemplar-001", "exemplar-002"]:
     raise ValueError("Invalid name. Use 'exemplar-001' or 'exemplar-002'.")
 
 # execute the nextflow pipeline to download example data
-report = f"{args.name}-execution_report.html"
+report = f"{args.name}_mcmicro-exemplar_execution_report.html"
 subprocess.run(
     [
         "nextflow",
@@ -29,8 +29,10 @@ subprocess.run(
     ]
 )
 
-# get the nextflow execution id from the log (first row)
-nextflow_id = subprocess.getoutput("nextflow log | awk 'NR==2{print $7}'")
+# get the nextflow execution id from the log (last row, latest run is at the bottom)
+nextflow_id = subprocess.getoutput(
+    "nextflow log | tail -n 1 | awk -F '\t' '{print $6}'"
+)
 
 # track the pipeline transform
 transform = ln.Transform(
