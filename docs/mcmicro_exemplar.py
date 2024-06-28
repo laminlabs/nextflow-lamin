@@ -59,7 +59,7 @@ ln.settings.sync_git_repo = "https://github.com/laminlabs/nextflow-lamin-usecase
 
 # register the downloaded folder
 exemplar_dir = ln.Artifact(args.name)
-ln.save(exemplar_dir)
+exemplar_dir.save()
 
 # optionally, track this python script as source code
 ln.finish()
