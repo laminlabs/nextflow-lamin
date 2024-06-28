@@ -24,7 +24,6 @@ run = ln.track(transform=transform)
 # get the input data from LaminDB
 mcmicro_input = ln.Artifact.filter(description=args.input).one()
 input_dir = mcmicro_input.cache()
-input_dir = "exemplar-001"
 
 # execute the nextflow pipeline to download example data
 report = f"{args.input}-mcmicro-execution_report.html"
@@ -34,7 +33,7 @@ subprocess.run(
         "run",
         "https://github.com/labsyspharm/mcmicro",
         "--in",
-        args.input,
+        input_dir,
         "--start-at",
         "illumination",
         "--stop-at",
@@ -64,7 +63,6 @@ with open(f"{input_dir}/qc/params.yml") as params_file:
     qc_params = yaml.safe_load(params_file)
 ln.Param(name="qc_params", dtype="dict").save()
 run.params.add_values({"qc_params": qc_params})
-
 
 # register the output artifact
 output = ln.Artifact.from_dir(f"{input_dir}/registration")
