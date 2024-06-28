@@ -54,12 +54,9 @@ run.save()
 # optionally, track the pipeline parameters
 ln.Param(name="name", dtype="str").save()
 run.params.add_values({"name": args.name})
-# optionally, sync with the git repository
-ln.settings.sync_git_repo = "https://github.com/laminlabs/nextflow-lamin-usecases"
 
 # register the downloaded folder
 exemplar_dir = ln.Artifact(args.name, description=args.name)
 exemplar_dir.save()
 
-# optionally, track this python script as source code
 ln.finish()
