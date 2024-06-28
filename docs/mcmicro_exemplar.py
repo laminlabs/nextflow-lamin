@@ -46,7 +46,9 @@ run.reference_type = "nextflow_id"
 ulabel = ln.ULabel(name="nextflow").save()
 run.transform.ulabels.add(ulabel)
 # track the execution report, set visibility to "hidden" to avoid cluttering the artifacts
-report_artifact = ln.Artifact(report, visibility=0, run=False).save()
+report_artifact = ln.Artifact(
+    report, description=f"nextflow report of {nextflow_id}", visibility=0, run=False
+).save()
 run.report = report_artifact
 run.save()
 # optionally, track the pipeline parameters
