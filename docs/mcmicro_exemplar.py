@@ -37,7 +37,6 @@ transform = ln.Transform(
     name="MCMICRO exemplar",
     version="1.0.0",
     type="pipeline",
-    description="Download MCMICRO exemplar data",
     reference="https://github.com/labsyspharm/mcmicro",
 )
 run = ln.track(transform=transform)
