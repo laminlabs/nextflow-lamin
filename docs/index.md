@@ -7,7 +7,6 @@
 :maxdepth: 1
 :hidden:
 
-mcmicro_01
-mcmicro_02
+mcmicro
 changelog
 ```

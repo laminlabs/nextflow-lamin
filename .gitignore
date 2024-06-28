@@ -113,7 +113,7 @@ _docs_tmp*
 .nextflow*
 work
 fetchngs-results
-execution_report.html
+exemplar-001-execution_report.html
 nextflow_rna_seq
 rna-seq-results
 multiqc_report.html
@@ -121,3 +121,4 @@ differentialabundance-results
 test-datasets
 nextflow-mcmicro
 exemplar-001
+exemplar-001-mcmicro-execution_report.html
