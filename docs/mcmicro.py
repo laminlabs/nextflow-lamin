@@ -21,7 +21,8 @@ transform = ln.Transform(
     type="pipeline",
     reference="https://github.com/labsyspharm/mcmicro",
 )
-run = ln.track(transform=transform)
+ln.context.track(transform=transform)
+run = ln.context.run
 
 # get the input data from LaminDB
 mcmicro_input = ln.Artifact.filter(description=args.input).one()
