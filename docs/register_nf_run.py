@@ -15,8 +15,8 @@ transform = ln.Transform(
     type="pipeline",
     reference=args.pipeline_reference,
 )
-ln.track(transform=transform)
-run = ln.dev.run_context.run
+ln.context.track(transform=transform)
+run = ln.context.run
 
 mcmicro_input = ln.Artifact.filter(key__startswith="exemplar-001")
 input_paths = [input_fastq.cache() for input_fastq in mcmicro_input]

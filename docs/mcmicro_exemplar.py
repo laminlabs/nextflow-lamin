@@ -43,7 +43,8 @@ transform = ln.Transform(
     type="pipeline",
     reference="https://github.com/labsyspharm/mcmicro",
 )
-run = ln.track(transform=transform)
+ln.context.track(transform=transform)
+run = ln.context.run
 # optionally, tag the transform
 ulabel = ln.ULabel(name="nextflow").save()
 run.transform.ulabels.add(ulabel)
