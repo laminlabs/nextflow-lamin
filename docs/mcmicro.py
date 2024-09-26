@@ -71,6 +71,9 @@ ln.Param(name="qc_params", dtype="dict").save()
 run.params.add_values({"qc_params": qc_params})
 
 # register the output artifact
+Path(f"{dest}/registration").joinpath(f"{Path(dest).name}.ome.tif").rename(
+    Path(f"{dest}/registration/example-001.ome.tif")
+)
 output = ln.Artifact.from_dir(f"{dest}/registration")
 ln.save(output)
 
