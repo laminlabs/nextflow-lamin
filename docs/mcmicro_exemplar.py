@@ -1,14 +1,13 @@
-# mcmicro_exemplar.py
-
 """This script downloads the MCMICRO exemplar data and registers it in LaminDB.
 
-Usage: python mcmicro_exemplar.py exemplar-001
+The here registered data is used for the Nextflow use case.
+Note that the Nextflow use case simulates the concatenation of two subsequent pipelines where
+this script executes the first pipeline and the Nextflow use case the second pipeline.
 """
 
 import lamindb as ln
 import subprocess
 import argparse
-
 
 # get args from command line
 parser = argparse.ArgumentParser()
@@ -64,4 +63,4 @@ run.params.add_values({"name": args.name})
 exemplar_dir = ln.Artifact(args.name, description=args.name)
 exemplar_dir.save()
 
-ln.finish()
+ln.context.finish()

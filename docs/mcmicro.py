@@ -1,5 +1,3 @@
-# mcmicro.py
-
 """This script runs the MCMICRO pipeline and tracks input/output data in LaminDB.
 
 Usage: python mcmicro.py exemplar-001
@@ -25,10 +23,10 @@ ln.context.track(transform=transform)
 run = ln.context.run
 
 # get the input data from LaminDB
-mcmicro_input = ln.Artifact.filter(description=args.input).one()
+mcmicro_input = ln.Artifact.using("laminlabs/lamindata").get(uid="iTLHluoQczqH6ZypgDxA")
 input_dir = mcmicro_input.cache()
 
-# execute the nextflow pipeline to download example data
+# execute the nextflow pipeline
 report = f"{args.input}-mcmicro-execution_report.html"
 subprocess.run(
     [
@@ -71,4 +69,4 @@ run.params.add_values({"qc_params": qc_params})
 output = ln.Artifact.from_dir(f"{input_dir}/registration")
 ln.save(output)
 
-ln.finish()
+ln.context.finish()
