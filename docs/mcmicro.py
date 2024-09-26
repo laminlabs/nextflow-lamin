@@ -7,6 +7,9 @@ import subprocess
 import argparse
 import lamindb as ln
 import yaml
+import shutil
+
+from pathlib import Path
 
 # get args from command line
 parser = argparse.ArgumentParser()
@@ -25,6 +28,8 @@ run = ln.context.run
 # get the input data from LaminDB
 mcmicro_input = ln.Artifact.using("laminlabs/lamindata").get(uid="iTLHluoQczqH6ZypgDxA")
 input_dir = mcmicro_input.cache()
+if not (dest := Path.cwd() / Path(input_dir.path).name).exists():
+    shutil.copytree(input_dir.path, dest)
 
 # execute the nextflow pipeline
 report = f"{args.input}-mcmicro-execution_report.html"
@@ -34,7 +39,7 @@ subprocess.run(
         "run",
         "https://github.com/labsyspharm/mcmicro",
         "--in",
-        input_dir,
+        dest,
         "--start-at",
         "illumination",
         "--stop-at",
@@ -60,13 +65,13 @@ run.reference = nextflow_id
 run.reference_type = "nextflow_id"
 run.save()
 # optionally, track the pipeline parameters
-with open(f"{input_dir}/qc/params.yml") as params_file:
+with open(f"{dest}/qc/params.yml") as params_file:
     qc_params = yaml.safe_load(params_file)
 ln.Param(name="qc_params", dtype="dict").save()
 run.params.add_values({"qc_params": qc_params})
 
 # register the output artifact
-output = ln.Artifact.from_dir(f"{input_dir}/registration")
+output = ln.Artifact.from_dir(f"{dest}/registration")
 ln.save(output)
 
 ln.context.finish()
