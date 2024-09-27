@@ -27,9 +27,7 @@ ln.context.track(transform=transform)
 run = ln.context.run
 
 # TEEEEEEEEST
-mcmicro_input = ln.Artifact.get("laminlabs/lamindata").filter(
-    description="exemplar-001"
-)
+mcmicro_input = ln.Artifact.using("laminlabs/lamindata").get(description="exemplar-001")
 mcmicro_input.load()
 
 report = "mcmicro-execution_report.html"
