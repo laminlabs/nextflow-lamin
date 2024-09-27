@@ -23,7 +23,7 @@ transform = ln.Transform(
     reference="https://github.com/labsyspharm/mcmicro",
 )
 ln.context.track(transform=transform)
-run = ln.context.unun
+run = ln.context.run
 
 # get the input data from a predecessor pipeline through LaminDB and make it available in the current working directory
 mcmicro_input = ln.Artifact.using("laminlabs/lamindata").get(description=args.input)
