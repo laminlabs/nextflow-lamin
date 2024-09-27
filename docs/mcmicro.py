@@ -26,6 +26,9 @@ transform = ln.Transform(
 ln.context.track(transform=transform)
 run = ln.context.run
 
+# TEEEEEEEEST
+mcmicro_input = ln.Artifact.filter(description="exemplar-001").one()
+
 report = "mcmicro-execution_report.html"
 
 # get the nextflow execution id from the log (first row)
