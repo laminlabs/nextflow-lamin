@@ -23,10 +23,10 @@ transform = ln.Transform(
     reference="https://github.com/labsyspharm/mcmicro",
 )
 ln.context.track(transform=transform)
-run = ln.context.run
+run = ln.context.unun
 
-# get the input data from LaminDB
-mcmicro_input = ln.Artifact.using("laminlabs/lamindata").get(uid="iTLHluoQczqH6ZypgDxA")
+# get the input data from a predecessor pipeline through LaminDB and make it available in the current working directory
+mcmicro_input = ln.Artifact.using("laminlabs/lamindata").get(description=args.input)
 input_dir = mcmicro_input.cache()
 if not (dest := Path.cwd() / Path(input_dir.path).name).exists():
     shutil.copytree(input_dir.path, dest)
@@ -71,9 +71,11 @@ ln.Param(name="qc_params", dtype="dict").save()
 run.params.add_values({"qc_params": qc_params})
 
 # register the output artifact
-Path(f"{dest}/registration").joinpath(f"{Path(dest).name}.ome.tif").rename(
-    Path(f"{dest}/registration/exemplar-001.ome.tif")
+(Path(dest) / "registration" / f"{Path(dest).name}.ome.tif").rename(
+    Path(dest) / "registration" / "exemplar-001.ome.tif"
 )
+
+
 output = ln.Artifact.from_dir(f"{dest}/registration")
 ln.save(output)
 
