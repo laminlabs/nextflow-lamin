@@ -1,4 +1,4 @@
-"""This script runs the MCMICRO pipeline and tracks input/output data in LaminDB.
+"""This script runs the MCMICRO pipeline and tracks output data in LaminDB.
 
 Usage: python mcmicro.py exemplar-001
 """
@@ -7,13 +7,12 @@ import subprocess
 import argparse
 import lamindb as ln
 import yaml
-import shutil
 
 from pathlib import Path
 
 # get args from command line
 parser = argparse.ArgumentParser()
-parser.add_argument("input", type=str, help="Input folder name.")
+parser.add_argument("output", type=str, help="Nextflow run output folder name")
 args = parser.parse_args()
 
 transform = ln.Transform(
@@ -25,29 +24,7 @@ transform = ln.Transform(
 ln.context.track(transform=transform)
 run = ln.context.run
 
-# get the input data from a predecessor pipeline through LaminDB and make it available in the current working directory
-mcmicro_input = ln.Artifact.using("laminlabs/lamindata").get(description=args.input)
-input_dir = mcmicro_input.cache()
-if not (dest := Path.cwd() / Path(input_dir.path).name).exists():
-    shutil.copytree(input_dir.path, dest)
-
-# execute the nextflow pipeline
-report = f"{args.input}-mcmicro-execution_report.html"
-subprocess.run(
-    [
-        "nextflow",
-        "run",
-        "https://github.com/labsyspharm/mcmicro",
-        "--in",
-        dest,
-        "--start-at",
-        "illumination",
-        "--stop-at",
-        "registration",
-        "-with-report",
-        report,
-    ]
-)
+report = "mcmicro-execution_report.html"
 
 # get the nextflow execution id from the log (first row)
 nextflow_id = subprocess.getoutput(
@@ -65,18 +42,16 @@ run.reference = nextflow_id
 run.reference_type = "nextflow_id"
 run.save()
 # optionally, track the pipeline parameters
-with open(f"{dest}/qc/params.yml") as params_file:
+with open(f"{args.output}/qc/params.yml") as params_file:
     qc_params = yaml.safe_load(params_file)
 ln.Param(name="qc_params", dtype="dict").save()
 run.params.add_values({"qc_params": qc_params})
 
 # register the output artifact
-(Path(dest) / "registration" / f"{Path(dest).name}.ome.tif").rename(
-    Path(dest) / "registration" / "exemplar-001.ome.tif"
+(Path(args.output) / "registration" / f"{Path(args.output).name}.ome.tif").rename(
+    Path(args.output) / "registration" / "exemplar-001.ome.tif"
 )
-
-
-output = ln.Artifact.from_dir(f"{dest}/registration")
+output = ln.Artifact.from_dir(f"{args.output}/registration")
 ln.save(output)
 
 ln.context.finish()
