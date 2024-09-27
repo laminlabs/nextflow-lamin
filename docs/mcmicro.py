@@ -1,6 +1,8 @@
-"""This script runs the MCMICRO pipeline and tracks output data in LaminDB.
+"""mcmicro.py.
 
-Usage: python mcmicro.py exemplar-001
+This script runs the MCMICRO pipeline and tracks output data in LaminDB.
+
+Usage: python mcmicro.py output-folder
 """
 
 import subprocess
