@@ -21,7 +21,7 @@ def build(session):
         "pip",
         "install",
         "--system",
-        "lamindb[aws,bionty]",
+        "lamindb[aws,,jupyter,bionty]",
     )
     session.run(*"pip install -e .[dev]".split())
     login_testuser1(session)
