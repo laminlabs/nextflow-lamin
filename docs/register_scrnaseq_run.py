@@ -1,4 +1,4 @@
-"""mcmicro.py.
+"""register_scrnaseq_run.py.
 
 This script tracks input and output of a nf-core/scrnaseq run in LaminDB.
 
