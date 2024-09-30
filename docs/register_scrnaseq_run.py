@@ -58,13 +58,11 @@ with open(
 ln.Param(name="params", dtype="dict").save()
 run.params.add_values({"params": params})
 
-# register the output artifacts
-multiqc_afs = ln.Artifact(f"{args.output}/multiqc", description="multiqc report")
-multiqc_afs.save()
+# register output
+multiqc_afs = ln.Artifact(f"{args.output}/multiqc", description="multiqc report").save()
 ct_mtx_af = ln.Artifact(
     f"{args.output}/star/mtx_conversions/combined_filtered_matrix.h5ad",
     description="filtered count matrix",
-)
-ct_mtx_af.save()
+).save()
 
 ln.context.finish()
