@@ -22,6 +22,7 @@ def parse_arguments() -> argparse.Namespace:
 def setup_lamindb_context(
     transform_name: str, transform_version: str, transform_reference: str
 ) -> ln.Run:
+    """Defines the lamindb Transform and Run context for the pipeline run."""
     scrnaseq_transform = ln.Transform(
         name=transform_name,
         version=transform_version,
@@ -72,14 +73,6 @@ def register_pipeline_metadata(output_dir: str, global_run: ln.Run) -> None:
     ).save()
     global_run.report = report_artifact
 
-    trace_artifact = ln.Artifact(
-        next(Path(f"{output_dir}/pipeline_info").glob("execution_trace*")),
-        description=f"nextflow run trace of {nextflow_id}",
-        visibility=0,
-        run=False,
-    ).save()
-    global_run.trace = trace_artifact
-
     environment_artifact = ln.Artifact(
         next(Path(f"{output_dir}/pipeline_info").glob("nf_core_pipeline_software*")),
         description=f"nextflow run software versions of {nextflow_id}",
@@ -87,14 +80,6 @@ def register_pipeline_metadata(output_dir: str, global_run: ln.Run) -> None:
         run=False,
     ).save()
     global_run.environment = environment_artifact
-
-    dag_artifact = ln.Artifact(
-        next(Path(f"{output_dir}/pipeline_info").glob("pipeline_dag*")),
-        description=f"nextflow run dag of {nextflow_id}",
-        visibility=0,
-        run=False,
-    ).save()
-    global_run.dag = dag_artifact
 
     params_path = next(Path(f"{output_dir}/pipeline_info").glob("params*"))
     with params_path.open() as params_file:
