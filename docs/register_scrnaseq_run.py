@@ -65,9 +65,6 @@ scrnaseq_transform = ln.Transform(
     type="pipeline",
     reference="https://github.com/nf-core/scrnaseq",
 )
-ln.context.track(transform=scrnaseq_transform)
-global_run = ln.context.run
-register_pipeline_io(args.input, args.output, global_run)
-register_pipeline_metadata(args.output, global_run)
-# the time stamp here won't make sense
-ln.context.finish()
+run = ln.Run(transform=scrnaseq_transform)
+register_pipeline_io(args.input, args.output, run)
+register_pipeline_metadata(args.output, run)
