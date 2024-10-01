@@ -6,14 +6,14 @@ from pathlib import Path
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Register nf-core/scrnaseq run in LaminDB.")
-    parser.add_argument("--input", type=str, required=True, help="Nextflow run input folder path.")
-    parser.add_argument("--output", type=str, required=True, help="Nextflow run output folder path.")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", type=str, required=True)
+    parser.add_argument("--output", type=str, required=True)
     return parser.parse_args()
 
 
 def register_pipeline_io(input_dir: str, output_dir: str, global_run: ln.Run) -> None:
-    """Registers input and output files and folders of a nf-core/scrnaseq run."""
+    """Registers input and output files and folders for an nf-core/scrnaseq run."""
     input_artifacts = ln.Artifact.from_dir(input_dir, run=False)
     ln.save(input_artifacts)
     global_run.input_artifacts.set(input_artifacts)
@@ -25,7 +25,7 @@ def register_pipeline_io(input_dir: str, output_dir: str, global_run: ln.Run) ->
 
 
 def register_pipeline_metadata(output_dir: str, global_run: ln.Run) -> None:
-    """Registers nf-core pipeline run metadata stored in the 'pipeline_info' directory."""
+    """Registers nf-core pipeline run metadata stored in the 'pipeline_info' folder."""
     ulabel = ln.ULabel(name="nextflow").save()
     global_run.transform.ulabels.add(ulabel)
 
