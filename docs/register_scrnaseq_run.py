@@ -13,7 +13,7 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def register_pipeline_io(input_dir: str, output_dir: str, global_run: ln.Run) -> None:
-    """Registers input and output files and folders for an nf-core/scrnaseq run."""
+    """Register input and output artifacts for an `nf-core/scrnaseq` run."""
     input_artifacts = ln.Artifact.from_dir(input_dir, run=False)
     ln.save(input_artifacts)
     global_run.input_artifacts.set(input_artifacts)
@@ -25,7 +25,7 @@ def register_pipeline_io(input_dir: str, output_dir: str, global_run: ln.Run) ->
 
 
 def register_pipeline_metadata(output_dir: str, global_run: ln.Run) -> None:
-    """Registers nf-core pipeline run metadata stored in the 'pipeline_info' folder."""
+    """Register nf-core run metadata stored in the 'pipeline_info' folder."""
     ulabel = ln.ULabel(name="nextflow").save()
     global_run.transform.ulabels.add(ulabel)
 
@@ -67,7 +67,7 @@ scrnaseq_transform = ln.Transform(
 )
 ln.context.track(transform=scrnaseq_transform)
 global_run = ln.context.run
-
 register_pipeline_io(args.input, args.output, global_run)
 register_pipeline_metadata(args.output, global_run)
+# the time stamp here won't make sense
 ln.context.finish()
