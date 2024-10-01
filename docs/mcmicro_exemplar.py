@@ -31,9 +31,7 @@ subprocess.run(
 )
 
 # get the nextflow execution id from the log (last row, latest run is at the bottom)
-nextflow_id = subprocess.getoutput(
-    "nextflow log | tail -n 1 | awk -F '\t' '{print $6}'"
-)
+nextflow_id = subprocess.getoutput("nextflow log | tail -n 1 | awk -F '\t' '{print $6}'")
 
 # track the pipeline transform
 transform = ln.Transform(
@@ -48,9 +46,7 @@ run = ln.context.run
 ulabel = ln.ULabel(name="nextflow").save()
 run.transform.ulabels.add(ulabel)
 # track the execution report, set visibility to "hidden" to avoid cluttering the artifacts
-report_artifact = ln.Artifact(
-    report, description=f"nextflow report of {nextflow_id}", visibility=0, run=False
-).save()
+report_artifact = ln.Artifact(report, description=f"nextflow report of {nextflow_id}", visibility=0, run=False).save()
 run.report = report_artifact
 run.reference = nextflow_id
 run.reference_type = "nextflow_id"
