@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Register input and output of a nf-core/scrnaseq run in LaminDB.")
+    parser = argparse.ArgumentParser(description="Register nf-core/scrnaseq run in LaminDB.")
     parser.add_argument("--input", type=str, required=True, help="Nextflow run input folder path.")
     parser.add_argument("--output", type=str, required=True, help="Nextflow run output folder path.")
     return parser.parse_args()
@@ -49,7 +49,7 @@ def register_pipeline_metadata(output_dir: str, global_run: ln.Run) -> None:
         ).save()
         setattr(global_run, run_attr, artifact)
 
-    # nextflow run params
+    # nextflow run parameters
     params_path = next(Path(f"{output_dir}/pipeline_info").glob("params*"))
     with params_path.open() as params_file:
         params = json.load(params_file)
