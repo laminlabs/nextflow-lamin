@@ -12,29 +12,30 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def register_pipeline_io(input_dir: str, output_dir: str, global_run: ln.Run) -> None:
+def register_pipeline_io(input_dir: str, output_dir: str, run: ln.Run) -> None:
     """Register input and output artifacts for an `nf-core/scrnaseq` run."""
     input_artifacts = ln.Artifact.from_dir(input_dir, run=False)
     ln.save(input_artifacts)
-    global_run.input_artifacts.set(input_artifacts)
-    ln.Artifact(f"{output_dir}/multiqc", description="multiqc report").save()
+    run.input_artifacts.set(input_artifacts)
+    ln.Artifact(f"{output_dir}/multiqc", description="multiqc report", run=run).save()
     ln.Artifact(
         f"{output_dir}/star/mtx_conversions/combined_filtered_matrix.h5ad",
         description="filtered count matrix",
+        run=run,
     ).save()
 
 
-def register_pipeline_metadata(output_dir: str, global_run: ln.Run) -> None:
+def register_pipeline_metadata(output_dir: str, run: ln.Run) -> None:
     """Register nf-core run metadata stored in the 'pipeline_info' folder."""
     ulabel = ln.ULabel(name="nextflow").save()
-    global_run.transform.ulabels.add(ulabel)
+    run.transform.ulabels.add(ulabel)
 
     # nextflow run id
     content = next(Path(f"{output_dir}/pipeline_info").glob("execution_report_*.html")).read_text()
     match = re.search(r"run id \[([^\]]+)\]", content)
     nextflow_id = match.group(1) if match else ""
-    global_run.reference = nextflow_id
-    global_run.reference_type = "nextflow_id"
+    run.reference = nextflow_id
+    run.reference_type = "nextflow_id"
 
     # execution report and software versions
     for file_pattern, description, run_attr in [
@@ -47,15 +48,15 @@ def register_pipeline_metadata(output_dir: str, global_run: ln.Run) -> None:
             visibility=0,
             run=False,
         ).save()
-        setattr(global_run, run_attr, artifact)
+        setattr(run, run_attr, artifact)
 
     # nextflow run parameters
     params_path = next(Path(f"{output_dir}/pipeline_info").glob("params*"))
     with params_path.open() as params_file:
         params = json.load(params_file)
     ln.Param(name="params", dtype="dict").save()
-    global_run.params.add_values({"params": params})
-    global_run.save()
+    run.params.add_values({"params": params})
+    run.save()
 
 
 args = parse_arguments()
