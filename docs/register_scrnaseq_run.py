@@ -65,7 +65,7 @@ scrnaseq_transform = ln.Transform(
     version="2.7.1",
     type="pipeline",
     reference="https://github.com/nf-core/scrnaseq",
-)
-run = ln.Run(transform=scrnaseq_transform)
+).save()
+run = ln.Run(transform=scrnaseq_transform).save()
 register_pipeline_io(args.input, args.output, run)
 register_pipeline_metadata(args.output, run)
