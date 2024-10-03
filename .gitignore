@@ -112,17 +112,9 @@ _docs_tmp*
 # Nextflow
 .nextflow*
 work
-fetchngs-results
-nextflow_rna_seq
-rna-seq-results
 multiqc_report.html
-differentialabundance-results
 test-datasets
-nextflow-mcmicro
-exemplar-001
-exemplar-001-mcmicro-execution_report.html
-mcmicro-execution_report.html
-iTLHluoQczqH6Zyp
 test-nextflow
 scrnaseq_input
 scrnaseq_output
+test.ipynb
