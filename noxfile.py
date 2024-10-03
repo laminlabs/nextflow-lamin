@@ -17,9 +17,11 @@ def lint(session: nox.Session) -> None:
 @nox.session()
 def build(session):
     session.run(
+        "uv",
         "pip",
         "install",
-        "lamindb @ git+https://github.com/laminlabs/lamindb",
+        "--system",
+        "lamindb[aws,jupyter,bionty]",
     )
     session.run(*"pip install -e .[dev]".split())
     login_testuser1(session)

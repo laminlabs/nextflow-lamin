@@ -10,32 +10,32 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     env:
       GITHUB_EVENT_NAME: ${{ github.event_name }}
       NXF_ANSI_LOG: false
     strategy:
       fail-fast: false
-    timeout-minutes: 50
+    timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: laminlabs/lndocs
           ssh-key: ${{ secrets.READ_LNDOCS }}
           path: lndocs
           ref: main
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
-          cache: "pip"
-          cache-dependency-path: ".github/workflows/build.yml"
-      - uses: nf-core/setup-nextflow@v1
+          python-version: "3.11"
+
+      - uses: nf-core/setup-nextflow@v2
         with:
           version: "latest-stable"
+
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pre-commit

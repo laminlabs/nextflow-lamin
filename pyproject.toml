@@ -27,7 +27,7 @@ dev = [
 
 [tool.ruff]
 src = ["nextflow_lamin"]
-line-length = 88
+line-length = 120
 select = [
     "F",  # Errors detected by Pyflakes
     "E",  # Error detected by Pycodestyle
