@@ -31,18 +31,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - uses: nf-core/setup-nextflow@v2
         with:
           version: "latest-stable"
-
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
       - run: sudo apt-get -y install graphviz
-      - run: pip install -U laminci
-      - uses: aws-actions/configure-aws-credentials@v2
+      - run: pip install "laminci@git+https://github.com/laminlabs/laminci"
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
