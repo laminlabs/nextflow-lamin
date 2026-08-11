@@ -66,7 +66,7 @@ to the Platform watch URL, with `run.reference_type` set to `"Seqera"`.
 
 You can register runs manually without using the `nf-lamin` plugin using LaminDB in a Python post-run script. First run the pipeline:
 
-```bash
+```shell
 # the test profile uses all downloaded input files as an input
 nextflow run nf-core/scrnaseq -r 4.0.0 -profile docker,test -resume --outdir scrnaseq_output
 ```
@@ -85,7 +85,7 @@ After the run is complete, use a post-run script to register inputs and outputs 
    :caption: nf-core/scrnaseq run registration
 ```
 
-```bash
+```shell
 python guide/register_scrnaseq_run.py --input scrnaseq_input --output scrnaseq_output
 ```
 
