@@ -24,7 +24,8 @@ import java.nio.file.attribute.FileTime
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse
 
 /**
- * Minimal BasicFileAttributes implementation backed by an S3 HeadObject response.
+ * Minimal BasicFileAttributes implementation backed by an S3 HeadObject response, or
+ * describing a prefix that has objects under it (a "directory").
  */
 @CompileStatic
 class LaminS3FileAttributes implements BasicFileAttributes {
@@ -35,9 +36,17 @@ class LaminS3FileAttributes implements BasicFileAttributes {
         this.response = response
     }
 
+    /**
+     * Attributes of a prefix. S3 has no directories, so there is nothing to report but that
+     * it is one.
+     */
+    static LaminS3FileAttributes directory() {
+        return new LaminS3FileAttributes(null)
+    }
+
     @Override
     FileTime lastModifiedTime() {
-        return response.lastModified() ? FileTime.from(response.lastModified()) : FileTime.fromMillis(0)
+        return response?.lastModified() ? FileTime.from(response.lastModified()) : FileTime.fromMillis(0)
     }
 
     @Override
@@ -52,12 +61,12 @@ class LaminS3FileAttributes implements BasicFileAttributes {
 
     @Override
     boolean isRegularFile() {
-        return true
+        return response != null
     }
 
     @Override
     boolean isDirectory() {
-        return false
+        return response == null
     }
 
     @Override
@@ -72,11 +81,11 @@ class LaminS3FileAttributes implements BasicFileAttributes {
 
     @Override
     long size() {
-        return response.contentLength() ?: 0L
+        return response?.contentLength() ?: 0L
     }
 
     @Override
     Object fileKey() {
-        return response.eTag()
+        return response?.eTag()
     }
 }
