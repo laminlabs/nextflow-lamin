@@ -33,6 +33,10 @@ import java.nio.file.FileAlreadyExistsException
 import java.nio.file.ReadOnlyFileSystemException
 import java.nio.file.StandardOpenOption
 
+import java.util.function.Supplier
+
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.core.ResponseInputStream
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.http.AbortableInputStream
@@ -61,6 +65,8 @@ import software.amazon.awssdk.services.s3.model.S3Object
 import software.amazon.awssdk.services.s3.model.UploadPartRequest
 import software.amazon.awssdk.services.s3.model.UploadPartResponse
 
+import ai.lamin.nf_lamin.hub.CloudAccessResponse
+
 /**
  * Tests for LaminS3FileSystemProvider.
  *
@@ -74,9 +80,13 @@ class LaminS3FileSystemProviderTest extends Specification {
      */
     static class TestableLaminS3FileSystemProvider extends LaminS3FileSystemProvider {
         AwsS3Client injectedClient
+        List<AwsCredentialsProvider> credentialsSeen = []
+        List<String> regionsSeen = []
 
         @Override
-        protected AwsS3Client createS3Client(String accessKeyId, String secretAccessKey, String sessionToken) {
+        protected AwsS3Client createS3Client(AwsCredentialsProvider credentials, String region) {
+            credentialsSeen << credentials
+            regionsSeen << region
             return injectedClient
         }
     }
@@ -87,6 +97,18 @@ class LaminS3FileSystemProviderTest extends Specification {
     def setup() {
         s3Client = Mock(AwsS3Client)
         provider = new TestableLaminS3FileSystemProvider(injectedClient: s3Client)
+    }
+
+    static CloudAccessResponse access(String keyId, String role = 'read') {
+        new CloudAccessResponse([
+            Credentials: [AccessKeyId: keyId, SecretAccessKey: 'secret', SessionToken: 'token'],
+            StorageAccessibility: [storageRoot: 's3://bucket/prefix', role: role, isManaged: true],
+        ])
+    }
+
+    static Supplier<CloudAccessResponse> creds(String keyId, String role = 'read') {
+        CloudAccessResponse response = access(keyId, role)
+        return { -> response } as Supplier<CloudAccessResponse>
     }
 
     // ==================== Scheme ====================
@@ -100,46 +122,32 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "getOrCreateFileSystem() creates and returns a new filesystem"() {
         when:
-        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID', 'write'))
 
         then:
         fs != null
         fs.storageRoot == 's3://bucket/prefix'
         fs.bucketName == 'bucket'
-        fs.accessKeyId == 'AKID'
+        fs.role == 'write'
         fs.s3Client == s3Client
     }
 
-    def "getOrCreateFileSystem() returns cached filesystem for same accessKeyId"() {
+    def "getOrCreateFileSystem() returns the cached filesystem for the same storageRoot"() {
         given:
-        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID1'))
 
         when:
-        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret2', 'token2')
+        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID2'))
 
         then:
         fs2.is(fs1)
-    }
-
-    def "getOrCreateFileSystem() creates new filesystem when accessKeyId changes"() {
-        given:
-        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID1', 'secret', 'token')
-        AwsS3Client s3Client2 = Mock(AwsS3Client)
-        provider.injectedClient = s3Client2
-
-        when:
-        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID2', 'secret', 'token')
-
-        then:
-        !fs2.is(fs1)
-        fs2.accessKeyId == 'AKID2'
-        fs2.s3Client == s3Client2
+        provider.credentialsSeen.size() == 1
     }
 
     def "getOrCreateFileSystem() creates separate filesystems for different storageRoots"() {
         when:
-        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix1', 'AKID', 'secret', 'token')
-        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix2', 'AKID', 'secret', 'token')
+        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix1', creds('AKID'))
+        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix2', creds('AKID'))
 
         then:
         !fs2.is(fs1)
@@ -147,11 +155,49 @@ class LaminS3FileSystemProviderTest extends Specification {
         fs2.storageRoot == 's3://bucket/prefix2'
     }
 
+    def "getOrCreateFileSystem() attaches the publish target to an existing filesystem"() {
+        given:
+        def target = new LaminStorageTarget(storageRoot: 's3://bucket/prefix', storageUid: 'St0rage00001')
+        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
+
+        when:
+        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'), target)
+
+        then:
+        fs2.is(fs1)
+        fs1.target.is(target)
+    }
+
+    def "the S3 client asks the credential source on every request"() {
+        given:
+        // the first response is read when the filesystem is created, for the role
+        def responses = [access('AKID0'), access('AKID1'), access('AKID2')].iterator()
+        provider.getOrCreateFileSystem('s3://bucket/prefix', { responses.next() } as Supplier<CloudAccessResponse>)
+
+        when:
+        def credentials = provider.credentialsSeen[0]
+
+        then:
+        (credentials.resolveCredentials() as AwsSessionCredentials).accessKeyId() == 'AKID1'
+        (credentials.resolveCredentials() as AwsSessionCredentials).accessKeyId() == 'AKID2'
+    }
+
+    def "getOrCreateFileSystem() passes the storage region to the client"() {
+        given:
+        def target = new LaminStorageTarget(storageRoot: 's3://bucket/prefix', region: 'eu-central-1')
+
+        when:
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'), target)
+
+        then:
+        provider.regionsSeen == ['eu-central-1']
+    }
+
     // ==================== removeFileSystem ====================
 
     def "removeFileSystem() removes the filesystem from the cache"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         provider.removeFileSystem('s3://bucket/prefix')
 
         when:
@@ -165,7 +211,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "getFileSystem(URI) returns the filesystem matching the bucket"() {
         given:
-        LaminS3FileSystem expected = provider.getOrCreateFileSystem('s3://my-bucket/prefix', 'AKID', 'secret', 'token')
+        LaminS3FileSystem expected = provider.getOrCreateFileSystem('s3://my-bucket/prefix', creds('AKID'))
 
         when:
         def fs = provider.getFileSystem(new URI('lamin-s3://my-bucket/any/key'))
@@ -186,7 +232,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "getPath(URI) returns a LaminS3Path for a known bucket"() {
         given:
-        provider.getOrCreateFileSystem('s3://my-bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://my-bucket/prefix', creds('AKID'))
 
         when:
         def path = provider.getPath(new URI('lamin-s3://my-bucket/some/object.txt'))
@@ -228,7 +274,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "isSameFile() returns true for equal paths"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p1 = provider.getPath(new URI('lamin-s3://bucket/a/b'))
         def p2 = provider.getPath(new URI('lamin-s3://bucket/a/b'))
 
@@ -238,7 +284,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "isSameFile() returns false for different paths"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p1 = provider.getPath(new URI('lamin-s3://bucket/a/b'))
         def p2 = provider.getPath(new URI('lamin-s3://bucket/x/y'))
 
@@ -248,7 +294,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "isHidden() always returns false"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/hidden/.hidden'))
 
         expect:
@@ -257,7 +303,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "canUpload() is true for a local source and an S3 target"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def s3Path = provider.getPath(new URI('lamin-s3://bucket/a/b'))
         def localPath = java.nio.file.Paths.get('/tmp/local.txt')
 
@@ -269,7 +315,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "canDownload() returns true for S3 source and local target"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def s3Path = provider.getPath(new URI('lamin-s3://bucket/a/b'))
         Path localPath = Files.createTempDirectory('lamin-test').resolve('file.txt')
 
@@ -290,7 +336,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "getFileStore() throws UnsupportedOperationException"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/k'))
 
         when:
@@ -302,7 +348,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "setAttribute() throws UnsupportedOperationException"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/k'))
 
         when:
@@ -316,7 +362,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "getFileAttributeView() returns null"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/k'))
 
         expect:
@@ -325,7 +371,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "readAttributes(path, String) returns empty map"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/k'))
 
         expect:
@@ -335,7 +381,7 @@ class LaminS3FileSystemProviderTest extends Specification {
     // ==================== S3 I/O operations (mocked) ====================
 
     private LaminS3Path s3Path(String key) {
-        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         return new LaminS3Path(fs, key)
     }
 
@@ -516,7 +562,7 @@ class LaminS3FileSystemProviderTest extends Specification {
     private static final ListObjectsV2Response EMPTY_LISTING = ListObjectsV2Response.builder().build()
 
     private LaminS3Path writablePath(String key) {
-        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token', 'write')
+        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID', 'write'))
         return new LaminS3Path(fs, key)
     }
 

@@ -40,6 +40,7 @@ import java.nio.file.ProviderMismatchException
 import java.nio.file.ReadOnlyFileSystemException
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
+import java.util.function.Supplier
 import java.util.stream.Stream
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileAttribute
@@ -49,8 +50,9 @@ import java.nio.file.spi.FileSystemProvider
 import nextflow.file.CopyOptions
 import nextflow.file.FileSystemTransferAware
 
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
+import ai.lamin.nf_lamin.hub.CloudAccessResponse
+
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client as AwsS3Client
@@ -99,42 +101,37 @@ class LaminS3FileSystemProvider extends FileSystemProvider implements FileSystem
     }
 
     /**
-     * Get or create an S3 file system for the given storage root using temporary session credentials.
+     * Get or create an S3 file system for the given storage root.
      *
      * Credentials from LaminHub are scoped to a specific storage root (e.g.
      * {@code s3://lamin-us-east-1/JwMEKs04D9WJ}), not to the entire bucket. Multiple
      * storage roots may share the same bucket but require separate credentials. The cache
      * is therefore keyed by {@code storageRoot}.
      *
-     * If a file system already exists for this storageRoot and was created with the same
-     * AccessKeyId, it is returned as-is. Otherwise a new S3 client is created with
-     * the provided session credentials and a new file system is installed.
+     * The S3 client asks {@code credentials} for the current STS credentials on every request,
+     * so the file system never needs to be recreated when the token is refreshed.
      *
      * @param storageRoot The full storage root URI (e.g. {@code s3://bucket/prefix}), used as cache key and to derive the bucket name
-     * @param accessKeyId     Temporary access key ID from STS
-     * @param secretAccessKey Temporary secret access key from STS
-     * @param sessionToken    Temporary session token from STS
-     * @param role            The role LaminHub granted on the storage root (read, write or admin)
-     * @param target          The publish target being resolved, if any
+     * @param credentials Source of the current cloud access for this storage root
+     * @param target      The publish target being resolved, if any
      * @return The LaminS3FileSystem for this storageRoot
      */
-    LaminS3FileSystem getOrCreateFileSystem(String storageRoot, String accessKeyId, String secretAccessKey, String sessionToken,
-                                            String role = null, LaminStorageTarget target = null) {
+    LaminS3FileSystem getOrCreateFileSystem(String storageRoot, Supplier<CloudAccessResponse> credentials, LaminStorageTarget target = null) {
         synchronized (fileSystems) {
             LaminS3FileSystem existing = fileSystems.get(storageRoot)
-            if (existing != null && existing.accessKeyId == accessKeyId) {
+            if (existing != null) {
                 if (target != null && existing.target == null) {
                     existing.target = target
                 }
                 return existing
             }
 
-            // Create a new S3 client with the temporary session credentials
-            AwsS3Client s3Client = createS3Client(accessKeyId, secretAccessKey, sessionToken)
+            CloudAccessResponse access = credentials.get()
+            AwsS3Client s3Client = createS3Client(new LaminCloudCredentialsProvider(storageRoot, credentials), target?.region)
 
-            LaminS3FileSystem fs = new LaminS3FileSystem(this, storageRoot, s3Client, accessKeyId, role, target ?: existing?.target)
+            LaminS3FileSystem fs = new LaminS3FileSystem(this, storageRoot, s3Client, access?.role, target)
             fileSystems.put(storageRoot, fs)
-            log.debug "Created LaminS3FileSystem for storageRoot '${storageRoot}' with accessKeyId ending in '${accessKeyId.takeRight(4)}'"
+            log.debug "Created LaminS3FileSystem for storageRoot '${storageRoot}' (role: ${access?.role})"
             return fs
         }
     }
@@ -144,15 +141,16 @@ class LaminS3FileSystemProvider extends FileSystemProvider implements FileSystem
     }
 
     /**
-     * Creates an AWS S3 client with the given temporary session credentials.
-     * Protected to allow test subclasses to inject mock clients.
+     * Creates an AWS S3 client. Protected to allow test subclasses to inject mock clients.
+     *
+     * @param credentials Provider the client asks for credentials on every request
+     * @param region      Region of the bucket, or null to start from us-east-1 and follow redirects
      */
-    protected AwsS3Client createS3Client(String accessKeyId, String secretAccessKey, String sessionToken) {
-        AwsSessionCredentials credentials = AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken)
+    protected AwsS3Client createS3Client(AwsCredentialsProvider credentials, String region) {
         return AwsS3Client.builder()
             .crossRegionAccessEnabled(true)
-            .region(Region.US_EAST_1)  // default; crossRegionAccessEnabled handles the rest
-            .credentialsProvider(StaticCredentialsProvider.create(credentials))
+            .region(region ? Region.of(region) : Region.US_EAST_1)
+            .credentialsProvider(credentials)
             .httpClientBuilder(UrlConnectionHttpClient.builder())
             .build()
     }
@@ -162,11 +160,15 @@ class LaminS3FileSystemProvider extends FileSystemProvider implements FileSystem
     @Override
     FileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException {
         String storageRoot = env.get('storageRoot') as String ?: uri.toString()
-        String accessKeyId = env.get('accessKeyId') as String
-        String secretAccessKey = env.get('secretAccessKey') as String
-        String sessionToken = env.get('sessionToken') as String
-        String role = env.get('role') as String
-        return getOrCreateFileSystem(storageRoot, accessKeyId, secretAccessKey, sessionToken, role)
+        CloudAccessResponse access = new CloudAccessResponse([
+            Credentials: [
+                AccessKeyId: env.get('accessKeyId'),
+                SecretAccessKey: env.get('secretAccessKey'),
+                SessionToken: env.get('sessionToken'),
+            ],
+            StorageAccessibility: [storageRoot: storageRoot, role: env.get('role')],
+        ] as Map<String, Object>)
+        return getOrCreateFileSystem(storageRoot, { -> access } as Supplier<CloudAccessResponse>)
     }
 
     @Override

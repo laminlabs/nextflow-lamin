@@ -29,7 +29,7 @@ class LaminS3FileSystemTest extends Specification {
     def setup() {
         provider = Mock(LaminS3FileSystemProvider)
         s3Client = Mock(AwsS3Client)
-        fs = new LaminS3FileSystem(provider, 's3://my-bucket/prefix', s3Client, 'AKIAIOSFODNN7EXAMPLE')
+        fs = new LaminS3FileSystem(provider, 's3://my-bucket/prefix', s3Client)
     }
 
     // ==================== Properties ====================
@@ -44,11 +44,6 @@ class LaminS3FileSystemTest extends Specification {
         fs.bucketName == 'my-bucket'
     }
 
-    def "getAccessKeyId() returns accessKeyId"() {
-        expect:
-        fs.accessKeyId == 'AKIAIOSFODNN7EXAMPLE'
-    }
-
     def "getS3Client() returns the s3Client"() {
         expect:
         fs.s3Client == s3Client
@@ -61,7 +56,7 @@ class LaminS3FileSystemTest extends Specification {
 
     def "getBucketName() works for different storageRoots"() {
         given:
-        def fs2 = new LaminS3FileSystem(provider, 's3://other-bucket/deep/prefix', s3Client, 'key')
+        def fs2 = new LaminS3FileSystem(provider, 's3://other-bucket/deep/prefix', s3Client)
 
         expect:
         fs2.bucketName == 'other-bucket'
@@ -70,9 +65,9 @@ class LaminS3FileSystemTest extends Specification {
     def "isReadOnly() follows the role LaminHub granted"() {
         expect:
         fs.isReadOnly()
-        new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'k', 'read').isReadOnly()
-        !new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'k', 'write').isReadOnly()
-        !new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'k', 'admin').isReadOnly()
+        new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'read').isReadOnly()
+        !new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'write').isReadOnly()
+        !new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'admin').isReadOnly()
     }
 
     def "carries the publish target it was created for"() {
@@ -80,7 +75,7 @@ class LaminS3FileSystemTest extends Specification {
         def target = new LaminStorageTarget(storageRoot: 's3://b/p', storageUid: 'St0rage00001', spaceId: 5)
 
         when:
-        def fs2 = new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'k', 'write', target)
+        def fs2 = new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'write', target)
 
         then:
         fs2.target.is(target)
