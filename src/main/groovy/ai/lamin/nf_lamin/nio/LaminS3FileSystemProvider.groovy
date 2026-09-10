@@ -100,19 +100,25 @@ class LaminS3FileSystemProvider extends FileSystemProvider implements FileSystem
      * @param accessKeyId     Temporary access key ID from STS
      * @param secretAccessKey Temporary secret access key from STS
      * @param sessionToken    Temporary session token from STS
+     * @param role            The role LaminHub granted on the storage root (read, write or admin)
+     * @param target          The publish target being resolved, if any
      * @return The LaminS3FileSystem for this storageRoot
      */
-    LaminS3FileSystem getOrCreateFileSystem(String storageRoot, String accessKeyId, String secretAccessKey, String sessionToken) {
+    LaminS3FileSystem getOrCreateFileSystem(String storageRoot, String accessKeyId, String secretAccessKey, String sessionToken,
+                                            String role = null, LaminStorageTarget target = null) {
         synchronized (fileSystems) {
             LaminS3FileSystem existing = fileSystems.get(storageRoot)
             if (existing != null && existing.accessKeyId == accessKeyId) {
+                if (target != null && existing.target == null) {
+                    existing.target = target
+                }
                 return existing
             }
 
             // Create a new S3 client with the temporary session credentials
             AwsS3Client s3Client = createS3Client(accessKeyId, secretAccessKey, sessionToken)
 
-            LaminS3FileSystem fs = new LaminS3FileSystem(this, storageRoot, s3Client, accessKeyId)
+            LaminS3FileSystem fs = new LaminS3FileSystem(this, storageRoot, s3Client, accessKeyId, role, target ?: existing?.target)
             fileSystems.put(storageRoot, fs)
             log.debug "Created LaminS3FileSystem for storageRoot '${storageRoot}' with accessKeyId ending in '${accessKeyId.takeRight(4)}'"
             return fs
@@ -145,7 +151,8 @@ class LaminS3FileSystemProvider extends FileSystemProvider implements FileSystem
         String accessKeyId = env.get('accessKeyId') as String
         String secretAccessKey = env.get('secretAccessKey') as String
         String sessionToken = env.get('sessionToken') as String
-        return getOrCreateFileSystem(storageRoot, accessKeyId, secretAccessKey, sessionToken)
+        String role = env.get('role') as String
+        return getOrCreateFileSystem(storageRoot, accessKeyId, secretAccessKey, sessionToken, role)
     }
 
     @Override

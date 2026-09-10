@@ -67,6 +67,26 @@ class LaminS3FileSystemTest extends Specification {
         fs2.bucketName == 'other-bucket'
     }
 
+    def "isReadOnly() follows the role LaminHub granted"() {
+        expect:
+        fs.isReadOnly()
+        new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'k', 'read').isReadOnly()
+        !new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'k', 'write').isReadOnly()
+        !new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'k', 'admin').isReadOnly()
+    }
+
+    def "carries the publish target it was created for"() {
+        given:
+        def target = new LaminStorageTarget(storageRoot: 's3://b/p', storageUid: 'St0rage00001', spaceId: 5)
+
+        when:
+        def fs2 = new LaminS3FileSystem(provider, 's3://b/p', s3Client, 'k', 'write', target)
+
+        then:
+        fs2.target.is(target)
+        fs.target == null
+    }
+
     // ==================== Open / close ====================
 
     def "isOpen() returns true initially"() {

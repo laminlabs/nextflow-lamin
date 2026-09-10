@@ -20,10 +20,21 @@ import spock.lang.Specification
 
 import java.nio.file.Paths
 
+import software.amazon.awssdk.services.s3.S3Client as AwsS3Client
+
 /**
  * Tests for LaminPathFactory
  */
 class LaminPathFactoryTest extends Specification {
+
+    def "toUriString renders a lamin-s3 path as its s3:// storage URI"() {
+        given:
+        def factory = new LaminPathFactory()
+        def fs = new LaminS3FileSystem(Mock(LaminS3FileSystemProvider), 's3://my-bucket/prefix', Mock(AwsS3Client), 'AKID')
+
+        expect:
+        factory.toUriString(new LaminS3Path(fs, 'prefix/results/file.txt')) == 's3://my-bucket/prefix/results/file.txt'
+    }
 
     def "should return null for non-lamin URIs"() {
         given:
