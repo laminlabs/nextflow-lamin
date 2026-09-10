@@ -3,6 +3,11 @@ package ai.lamin.nf_lamin
 import ai.lamin.nf_lamin.instance.Instance
 import ai.lamin.nf_lamin.model.ArtifactAnnotation
 import ai.lamin.nf_lamin.model.RunStatus
+import ai.lamin.nf_lamin.nio.LaminS3FileSystem
+import ai.lamin.nf_lamin.nio.LaminS3FileSystemProvider
+import ai.lamin.nf_lamin.nio.LaminS3Path
+import ai.lamin.nf_lamin.nio.LaminStorageTarget
+import software.amazon.awssdk.services.s3.S3Client as AwsS3Client
 import nextflow.Session
 import nextflow.exception.AbortSignalException
 import nextflow.script.WorkflowMetadata
@@ -86,6 +91,69 @@ class LaminRunManagerTest extends Specification {
             args.get('path') == 's3://test-bucket/test-file.txt'
         }) >> [uid: 'testuid1234567890ab', branch: 7.0]
         result != null
+    }
+
+    private LaminS3Path publishedPath(String key, LaminStorageTarget target) {
+        def fs = new LaminS3FileSystem(Mock(LaminS3FileSystemProvider), 's3://bucket/JwMEKs04D9WJ', Mock(AwsS3Client), 'write', target)
+        return new LaminS3Path(fs, key)
+    }
+
+    def 'fetchOrCreateArtifact takes the space from the storage location a published file resolved to'() {
+        given:
+        def manager = LaminRunManager.instance
+        def mockInstance = Mock(Instance)
+        manager.setCurrentInstance(mockInstance)
+        injectField(manager, 'config', new LaminConfig([instance: 'testorg/testinst', api_key: 'test-key']))
+        injectField(manager, 'resolvedSpaceId', 3)
+        def target = new LaminStorageTarget(storageRoot: 's3://bucket/JwMEKs04D9WJ', storageUid: 'JwMEKs04D9WJ', spaceId: 5)
+        def path = publishedPath('JwMEKs04D9WJ/results/a.txt', target)
+        mockInstance.getArtifactByPath(_) >> null
+
+        when:
+        manager.fetchOrCreateArtifact([path: path])
+
+        then:
+        1 * mockInstance.createArtifact({ Map args ->
+            args.get('space_id') == 5 && args.get('path') == 's3://bucket/JwMEKs04D9WJ/results/a.txt'
+        }) >> [uid: 'testuid1234567890ab']
+    }
+
+    def 'fetchOrCreateArtifact keeps the configured space when the storage location has none'() {
+        given:
+        def manager = LaminRunManager.instance
+        def mockInstance = Mock(Instance)
+        manager.setCurrentInstance(mockInstance)
+        injectField(manager, 'config', new LaminConfig([instance: 'testorg/testinst', api_key: 'test-key']))
+        injectField(manager, 'resolvedSpaceId', 3)
+        def target = new LaminStorageTarget(storageRoot: 's3://bucket/JwMEKs04D9WJ', storageUid: 'JwMEKs04D9WJ')
+        def path = publishedPath('JwMEKs04D9WJ/results/a.txt', target)
+        mockInstance.getArtifactByPath(_) >> null
+
+        when:
+        manager.fetchOrCreateArtifact([path: path])
+
+        then:
+        1 * mockInstance.createArtifact({ Map args -> args.get('space_id') == 3 }) >> [uid: 'testuid1234567890ab']
+    }
+
+    def 'an index file announced by onWorkflowOutput is registered when it is published'() {
+        given:
+        def mockInstance = Mock(Instance)
+        def manager = annotatingManager(mockInstance)
+        def index = remotePath('s3://bucket/results/reports/index.csv')
+        mockInstance.getArtifactByPath(_) >> null
+
+        when: 'the output block is announced, before the index file exists'
+        manager.rememberOutputName(index, 'reports')
+
+        then:
+        0 * mockInstance.createArtifact(_)
+
+        when: 'the index file is published'
+        manager.createOutputArtifactOnFilePublish(null, index, null)
+
+        then:
+        1 * mockInstance.createArtifact({ Map args -> (args.description as String).contains("'reports'") }) >> [uid: 'A1', id: 11, run: 1]
     }
 
     def 'fetchOrCreateArtifact omits branch_id and space_id when not resolved'() {

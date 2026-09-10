@@ -33,6 +33,11 @@ nextflowPlugin {
     extensionPoints = [
         'ai.lamin.nf_lamin.LaminExtension',
         'ai.lamin.nf_lamin.LaminFactory',
-        'ai.lamin.nf_lamin.LaminConfig'
+        'ai.lamin.nf_lamin.LaminConfig',
+        // The @Extension annotation alone does not register these: the index is generated
+        // from this list. Without the path factory, Nextflow parses lamin:// URIs through
+        // its scheme fallback, which folds the query string into the path.
+        'ai.lamin.nf_lamin.nio.LaminPathFactory',
+        'ai.lamin.nf_lamin.nio.LaminPathSerializer'
     ]
 }

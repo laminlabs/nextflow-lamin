@@ -48,8 +48,10 @@ final class LaminS3Path implements Path {
     LaminS3Path(LaminS3FileSystem fs, String key) {
         if (fs == null) throw new IllegalArgumentException("FileSystem cannot be null")
         this.fs = fs
-        // normalize key: strip leading slash
-        this.key = key?.replaceFirst('^/', '') ?: ''
+        // normalize key: no leading, trailing or doubled slashes. Nextflow resolves publish
+        // destinations from strings like "reports/${id}/", which would otherwise leave a "//"
+        // in the object key.
+        this.key = key?.replaceAll('/+', '/')?.replaceFirst('^/', '')?.replaceFirst('/$', '') ?: ''
     }
 
     String getBucket() { return fs.bucketName }

@@ -33,8 +33,8 @@ class LaminS3PathTest extends Specification {
     def setup() {
         provider = Mock(LaminS3FileSystemProvider)
         s3Client = Mock(AwsS3Client)
-        fs  = new LaminS3FileSystem(provider, 's3://my-bucket/prefix', s3Client, 'key1')
-        fs2 = new LaminS3FileSystem(provider, 's3://my-bucket/other',  s3Client, 'key2')
+        fs  = new LaminS3FileSystem(provider, 's3://my-bucket/prefix', s3Client)
+        fs2 = new LaminS3FileSystem(provider, 's3://my-bucket/other',  s3Client)
     }
 
     private LaminS3Path path(String key) {
@@ -42,6 +42,19 @@ class LaminS3PathTest extends Specification {
     }
 
     // ==================== Constructor ====================
+
+    def "constructor collapses duplicate slashes and strips a trailing slash"() {
+        expect:
+        path('a//b/').key == 'a/b'
+        path('/a///b//c').key == 'a/b/c'
+        path('/').key == ''
+    }
+
+    def "resolve() against a key with a trailing slash does not double the separator"() {
+        expect:
+        path('reports/sample_1/').resolve('report.json').key == 'reports/sample_1/report.json'
+        path('reports/sample_1/').resolve('tables/').resolve('counts.csv').key == 'reports/sample_1/tables/counts.csv'
+    }
 
     def "constructor should throw on null filesystem"() {
         when:

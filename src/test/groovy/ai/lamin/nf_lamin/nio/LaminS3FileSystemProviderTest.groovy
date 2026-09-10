@@ -26,14 +26,46 @@ import java.nio.file.ProviderMismatchException
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 
+import java.nio.ByteBuffer
+import java.nio.channels.SeekableByteChannel
+import java.nio.file.DirectoryNotEmptyException
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.ReadOnlyFileSystemException
+import java.nio.file.StandardOpenOption
+
+import java.util.function.Supplier
+
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.core.ResponseInputStream
+import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.http.AbortableInputStream
 import software.amazon.awssdk.services.s3.S3Client as AwsS3Client
+import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest
+import software.amazon.awssdk.services.s3.model.CommonPrefix
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
+import software.amazon.awssdk.services.s3.model.DeleteObjectResponse
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.GetObjectResponse
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
+import software.amazon.awssdk.services.s3.model.PutObjectRequest
+import software.amazon.awssdk.services.s3.model.PutObjectResponse
+import software.amazon.awssdk.services.s3.model.S3Exception
+import software.amazon.awssdk.services.s3.model.S3Object
+import software.amazon.awssdk.services.s3.model.UploadPartRequest
+import software.amazon.awssdk.services.s3.model.UploadPartResponse
+
+import ai.lamin.nf_lamin.hub.CloudAccessResponse
 
 /**
  * Tests for LaminS3FileSystemProvider.
@@ -48,9 +80,13 @@ class LaminS3FileSystemProviderTest extends Specification {
      */
     static class TestableLaminS3FileSystemProvider extends LaminS3FileSystemProvider {
         AwsS3Client injectedClient
+        List<AwsCredentialsProvider> credentialsSeen = []
+        List<String> regionsSeen = []
 
         @Override
-        protected AwsS3Client createS3Client(String accessKeyId, String secretAccessKey, String sessionToken) {
+        protected AwsS3Client createS3Client(AwsCredentialsProvider credentials, String region) {
+            credentialsSeen << credentials
+            regionsSeen << region
             return injectedClient
         }
     }
@@ -61,6 +97,18 @@ class LaminS3FileSystemProviderTest extends Specification {
     def setup() {
         s3Client = Mock(AwsS3Client)
         provider = new TestableLaminS3FileSystemProvider(injectedClient: s3Client)
+    }
+
+    static CloudAccessResponse access(String keyId, String role = 'read') {
+        new CloudAccessResponse([
+            Credentials: [AccessKeyId: keyId, SecretAccessKey: 'secret', SessionToken: 'token'],
+            StorageAccessibility: [storageRoot: 's3://bucket/prefix', role: role, isManaged: true],
+        ])
+    }
+
+    static Supplier<CloudAccessResponse> creds(String keyId, String role = 'read') {
+        CloudAccessResponse response = access(keyId, role)
+        return { -> response } as Supplier<CloudAccessResponse>
     }
 
     // ==================== Scheme ====================
@@ -74,46 +122,32 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "getOrCreateFileSystem() creates and returns a new filesystem"() {
         when:
-        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID', 'write'))
 
         then:
         fs != null
         fs.storageRoot == 's3://bucket/prefix'
         fs.bucketName == 'bucket'
-        fs.accessKeyId == 'AKID'
+        fs.role == 'write'
         fs.s3Client == s3Client
     }
 
-    def "getOrCreateFileSystem() returns cached filesystem for same accessKeyId"() {
+    def "getOrCreateFileSystem() returns the cached filesystem for the same storageRoot"() {
         given:
-        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID1'))
 
         when:
-        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret2', 'token2')
+        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID2'))
 
         then:
         fs2.is(fs1)
-    }
-
-    def "getOrCreateFileSystem() creates new filesystem when accessKeyId changes"() {
-        given:
-        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID1', 'secret', 'token')
-        AwsS3Client s3Client2 = Mock(AwsS3Client)
-        provider.injectedClient = s3Client2
-
-        when:
-        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID2', 'secret', 'token')
-
-        then:
-        !fs2.is(fs1)
-        fs2.accessKeyId == 'AKID2'
-        fs2.s3Client == s3Client2
+        provider.credentialsSeen.size() == 1
     }
 
     def "getOrCreateFileSystem() creates separate filesystems for different storageRoots"() {
         when:
-        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix1', 'AKID', 'secret', 'token')
-        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix2', 'AKID', 'secret', 'token')
+        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix1', creds('AKID'))
+        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix2', creds('AKID'))
 
         then:
         !fs2.is(fs1)
@@ -121,11 +155,49 @@ class LaminS3FileSystemProviderTest extends Specification {
         fs2.storageRoot == 's3://bucket/prefix2'
     }
 
+    def "getOrCreateFileSystem() attaches the publish target to an existing filesystem"() {
+        given:
+        def target = new LaminStorageTarget(storageRoot: 's3://bucket/prefix', storageUid: 'St0rage00001')
+        LaminS3FileSystem fs1 = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
+
+        when:
+        LaminS3FileSystem fs2 = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'), target)
+
+        then:
+        fs2.is(fs1)
+        fs1.target.is(target)
+    }
+
+    def "the S3 client asks the credential source on every request"() {
+        given:
+        // the first response is read when the filesystem is created, for the role
+        def responses = [access('AKID0'), access('AKID1'), access('AKID2')].iterator()
+        provider.getOrCreateFileSystem('s3://bucket/prefix', { responses.next() } as Supplier<CloudAccessResponse>)
+
+        when:
+        def credentials = provider.credentialsSeen[0]
+
+        then:
+        (credentials.resolveCredentials() as AwsSessionCredentials).accessKeyId() == 'AKID1'
+        (credentials.resolveCredentials() as AwsSessionCredentials).accessKeyId() == 'AKID2'
+    }
+
+    def "getOrCreateFileSystem() passes the storage region to the client"() {
+        given:
+        def target = new LaminStorageTarget(storageRoot: 's3://bucket/prefix', region: 'eu-central-1')
+
+        when:
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'), target)
+
+        then:
+        provider.regionsSeen == ['eu-central-1']
+    }
+
     // ==================== removeFileSystem ====================
 
     def "removeFileSystem() removes the filesystem from the cache"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         provider.removeFileSystem('s3://bucket/prefix')
 
         when:
@@ -139,7 +211,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "getFileSystem(URI) returns the filesystem matching the bucket"() {
         given:
-        LaminS3FileSystem expected = provider.getOrCreateFileSystem('s3://my-bucket/prefix', 'AKID', 'secret', 'token')
+        LaminS3FileSystem expected = provider.getOrCreateFileSystem('s3://my-bucket/prefix', creds('AKID'))
 
         when:
         def fs = provider.getFileSystem(new URI('lamin-s3://my-bucket/any/key'))
@@ -160,7 +232,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "getPath(URI) returns a LaminS3Path for a known bucket"() {
         given:
-        provider.getOrCreateFileSystem('s3://my-bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://my-bucket/prefix', creds('AKID'))
 
         when:
         def path = provider.getPath(new URI('lamin-s3://my-bucket/some/object.txt'))
@@ -202,7 +274,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "isSameFile() returns true for equal paths"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p1 = provider.getPath(new URI('lamin-s3://bucket/a/b'))
         def p2 = provider.getPath(new URI('lamin-s3://bucket/a/b'))
 
@@ -212,7 +284,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "isSameFile() returns false for different paths"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p1 = provider.getPath(new URI('lamin-s3://bucket/a/b'))
         def p2 = provider.getPath(new URI('lamin-s3://bucket/x/y'))
 
@@ -222,26 +294,28 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "isHidden() always returns false"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/hidden/.hidden'))
 
         expect:
         !provider.isHidden(p)
     }
 
-    def "canUpload() always returns false"() {
+    def "canUpload() is true for a local source and an S3 target"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def s3Path = provider.getPath(new URI('lamin-s3://bucket/a/b'))
         def localPath = java.nio.file.Paths.get('/tmp/local.txt')
 
         expect:
-        !provider.canUpload(localPath, s3Path)
+        provider.canUpload(localPath, s3Path)
+        !provider.canUpload(s3Path, localPath)
+        !provider.canUpload(localPath, localPath)
     }
 
     def "canDownload() returns true for S3 source and local target"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def s3Path = provider.getPath(new URI('lamin-s3://bucket/a/b'))
         Path localPath = Files.createTempDirectory('lamin-test').resolve('file.txt')
 
@@ -260,82 +334,9 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     // ==================== Unsupported operations ====================
 
-    def "newOutputStream() throws UnsupportedOperationException"() {
-        given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
-        def p = provider.getPath(new URI('lamin-s3://bucket/k'))
-
-        when:
-        provider.newOutputStream(p)
-
-        then:
-        thrown(UnsupportedOperationException)
-    }
-
-    def "newByteChannel() throws UnsupportedOperationException"() {
-        given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
-        def p = provider.getPath(new URI('lamin-s3://bucket/k'))
-
-        when:
-        provider.newByteChannel(p, Collections.emptySet())
-
-        then:
-        thrown(UnsupportedOperationException)
-    }
-
-    def "newDirectoryStream() throws UnsupportedOperationException"() {
-        given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
-        def p = provider.getPath(new URI('lamin-s3://bucket/k'))
-
-        when:
-        provider.newDirectoryStream(p, { true })
-
-        then:
-        thrown(UnsupportedOperationException)
-    }
-
-    def "createDirectory() throws UnsupportedOperationException"() {
-        given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
-        def p = provider.getPath(new URI('lamin-s3://bucket/k'))
-
-        when:
-        provider.createDirectory(p)
-
-        then:
-        thrown(UnsupportedOperationException)
-    }
-
-    def "delete() throws UnsupportedOperationException"() {
-        given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
-        def p = provider.getPath(new URI('lamin-s3://bucket/k'))
-
-        when:
-        provider.delete(p)
-
-        then:
-        thrown(UnsupportedOperationException)
-    }
-
-    def "move() throws UnsupportedOperationException"() {
-        given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
-        def p1 = provider.getPath(new URI('lamin-s3://bucket/a'))
-        def p2 = provider.getPath(new URI('lamin-s3://bucket/b'))
-
-        when:
-        provider.move(p1, p2)
-
-        then:
-        thrown(UnsupportedOperationException)
-    }
-
     def "getFileStore() throws UnsupportedOperationException"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/k'))
 
         when:
@@ -347,7 +348,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "setAttribute() throws UnsupportedOperationException"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/k'))
 
         when:
@@ -357,24 +358,11 @@ class LaminS3FileSystemProviderTest extends Specification {
         thrown(UnsupportedOperationException)
     }
 
-    def "upload() throws UnsupportedOperationException"() {
-        given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
-        def s3Path = provider.getPath(new URI('lamin-s3://bucket/k'))
-        def localPath = java.nio.file.Paths.get('/tmp/local.txt')
-
-        when:
-        provider.upload(localPath, s3Path)
-
-        then:
-        thrown(UnsupportedOperationException)
-    }
-
     // ==================== Attribute views ====================
 
     def "getFileAttributeView() returns null"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/k'))
 
         expect:
@@ -383,7 +371,7 @@ class LaminS3FileSystemProviderTest extends Specification {
 
     def "readAttributes(path, String) returns empty map"() {
         given:
-        provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         def p = provider.getPath(new URI('lamin-s3://bucket/k'))
 
         expect:
@@ -393,7 +381,7 @@ class LaminS3FileSystemProviderTest extends Specification {
     // ==================== S3 I/O operations (mocked) ====================
 
     private LaminS3Path s3Path(String key) {
-        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', 'AKID', 'secret', 'token')
+        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID'))
         return new LaminS3Path(fs, key)
     }
 
@@ -433,19 +421,19 @@ class LaminS3FileSystemProviderTest extends Specification {
     def "checkAccess() calls headObject and succeeds when key exists"() {
         given:
         def p = s3Path('prefix/exists.txt')
-        s3Client.headObject(_ as HeadObjectRequest) >> HeadObjectResponse.builder().contentLength(42L).build()
 
         when:
         provider.checkAccess(p)
 
         then:
-        1 * s3Client.headObject(_ as HeadObjectRequest)
+        1 * s3Client.headObject(_ as HeadObjectRequest) >> HeadObjectResponse.builder().contentLength(42L).build()
+        0 * s3Client.listObjectsV2(*_)
     }
 
     def "checkAccess() throws NoSuchFileException when key does not exist"() {
         given:
         def p = s3Path('prefix/missing.txt')
-        s3Client.headObject(_ as HeadObjectRequest) >> { throw NoSuchKeyException.builder().message('not found').statusCode(404).build() }
+        nothingExists()
 
         when:
         provider.checkAccess(p)
@@ -470,7 +458,7 @@ class LaminS3FileSystemProviderTest extends Specification {
     def "readAttributes(path, Class) throws NoSuchFileException when key does not exist"() {
         given:
         def p = s3Path('prefix/missing.txt')
-        s3Client.headObject(_ as HeadObjectRequest) >> { throw NoSuchKeyException.builder().message('not found').statusCode(404).build() }
+        nothingExists()
 
         when:
         provider.readAttributes(p, BasicFileAttributes)
@@ -566,6 +554,412 @@ class LaminS3FileSystemProviderTest extends Specification {
 
         cleanup:
         tmpDir.toFile().deleteDir()
+    }
+
+    // ==================== Writes ====================
+
+    private static final NoSuchKeyException NO_SUCH_KEY = NoSuchKeyException.builder().message('not found').statusCode(404).build()
+    private static final ListObjectsV2Response EMPTY_LISTING = ListObjectsV2Response.builder().build()
+
+    private LaminS3Path writablePath(String key) {
+        LaminS3FileSystem fs = provider.getOrCreateFileSystem('s3://bucket/prefix', creds('AKID', 'write'))
+        return new LaminS3Path(fs, key)
+    }
+
+    /** Stub the client so that nothing exists under the bucket. */
+    private void nothingExists() {
+        s3Client.headObject(_ as HeadObjectRequest) >> { throw NO_SUCH_KEY }
+        s3Client.listObjectsV2(_ as ListObjectsV2Request) >> EMPTY_LISTING
+    }
+
+    private static byte[] bytesOf(RequestBody body) {
+        return body.contentStreamProvider().newStream().bytes
+    }
+
+    def "newOutputStream() uploads the written bytes on close"() {
+        given:
+        def p = writablePath('prefix/out.txt')
+        nothingExists()
+        def puts = []
+        s3Client.putObject(_ as PutObjectRequest, _ as RequestBody) >> { PutObjectRequest r, RequestBody b ->
+            puts << [r.bucket(), r.key(), new String(bytesOf(b))]
+            PutObjectResponse.builder().build()
+        }
+
+        when:
+        OutputStream out = provider.newOutputStream(p)
+        out.write('hello '.bytes)
+        out.write('world'.bytes)
+
+        then:
+        puts.isEmpty()
+
+        when:
+        out.close()
+
+        then:
+        puts == [['bucket', 'prefix/out.txt', 'hello world']]
+    }
+
+    def "newOutputStream() with CREATE_NEW refuses to overwrite an existing object"() {
+        given:
+        def p = writablePath('prefix/out.txt')
+        s3Client.headObject(_ as HeadObjectRequest) >> HeadObjectResponse.builder().contentLength(1L).build()
+
+        when:
+        provider.newOutputStream(p, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+
+        then:
+        thrown(FileAlreadyExistsException)
+        0 * s3Client.putObject(*_)
+    }
+
+    def "newOutputStream() with APPEND keeps the existing content"() {
+        given:
+        def p = writablePath('prefix/index.csv')
+        s3Client.headObject(_ as HeadObjectRequest) >> HeadObjectResponse.builder().contentLength(4L).build()
+        s3Client.getObject(_ as GetObjectRequest) >> responseStream('abc\n'.bytes)
+        def puts = []
+        s3Client.putObject(_ as PutObjectRequest, _ as RequestBody) >> { PutObjectRequest r, RequestBody b ->
+            puts << new String(bytesOf(b))
+            PutObjectResponse.builder().build()
+        }
+
+        when:
+        OutputStream out = provider.newOutputStream(p, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+        out.write('def\n'.bytes)
+        out.close()
+
+        then:
+        puts == ['abc\ndef\n']
+    }
+
+    def "newOutputStream() refuses to write to a read-only filesystem"() {
+        given:
+        def p = s3Path('prefix/out.txt')
+
+        when:
+        provider.newOutputStream(p)
+
+        then:
+        thrown(ReadOnlyFileSystemException)
+    }
+
+    def "newByteChannel() for writing uploads on close"() {
+        given:
+        def p = writablePath('prefix/out.bin')
+        nothingExists()
+        def puts = []
+        s3Client.putObject(_ as PutObjectRequest, _ as RequestBody) >> { PutObjectRequest r, RequestBody b ->
+            puts << new String(bytesOf(b))
+            PutObjectResponse.builder().build()
+        }
+
+        when:
+        SeekableByteChannel channel = provider.newByteChannel(p, [StandardOpenOption.CREATE, StandardOpenOption.WRITE] as Set)
+        channel.write(ByteBuffer.wrap('channel'.bytes))
+        channel.close()
+
+        then:
+        puts == ['channel']
+    }
+
+    def "newByteChannel() for reading serves the object content"() {
+        given:
+        def p = s3Path('prefix/in.bin')
+        s3Client.headObject(_ as HeadObjectRequest) >> HeadObjectResponse.builder().contentLength(4L).build()
+        s3Client.getObject(_ as GetObjectRequest) >> responseStream('data'.bytes)
+
+        when:
+        SeekableByteChannel channel = provider.newByteChannel(p, [StandardOpenOption.READ] as Set)
+        ByteBuffer buffer = ByteBuffer.allocate(16)
+        channel.read(buffer)
+        channel.close()
+
+        then:
+        new String(buffer.array(), 0, buffer.position()) == 'data'
+        0 * s3Client.putObject(*_)
+    }
+
+    def "createDirectory() is a no-op"() {
+        given:
+        def p = writablePath('prefix/dir')
+
+        when:
+        provider.createDirectory(p)
+
+        then:
+        0 * s3Client._
+    }
+
+    def "checkAccess() succeeds for a prefix that has objects under it"() {
+        given:
+        def p = s3Path('prefix/dir')
+        s3Client.headObject(_ as HeadObjectRequest) >> { throw NO_SUCH_KEY }
+        s3Client.listObjectsV2(_ as ListObjectsV2Request) >> { ListObjectsV2Request r ->
+            assert r.prefix() == 'prefix/dir/'
+            ListObjectsV2Response.builder().contents(S3Object.builder().key('prefix/dir/a.txt').size(1L).build()).build()
+        }
+
+        when:
+        provider.checkAccess(p)
+
+        then:
+        noExceptionThrown()
+    }
+
+    def "checkAccess() succeeds for the bucket root"() {
+        when:
+        provider.checkAccess(s3Path(''))
+
+        then:
+        0 * s3Client._
+    }
+
+    def "checkAccess() throws NoSuchFileException when neither object nor prefix exist"() {
+        given:
+        def p = s3Path('prefix/missing')
+        nothingExists()
+
+        when:
+        provider.checkAccess(p)
+
+        then:
+        thrown(NoSuchFileException)
+    }
+
+    def "readAttributes() reports a prefix with objects under it as a directory"() {
+        given:
+        def p = s3Path('prefix/dir')
+        s3Client.headObject(_ as HeadObjectRequest) >> { throw NO_SUCH_KEY }
+        s3Client.listObjectsV2(_ as ListObjectsV2Request) >> ListObjectsV2Response.builder()
+            .contents(S3Object.builder().key('prefix/dir/a.txt').size(1L).build()).build()
+
+        when:
+        def attrs = provider.readAttributes(p, BasicFileAttributes)
+
+        then:
+        attrs.isDirectory()
+        !attrs.isRegularFile()
+        attrs.size() == 0L
+    }
+
+    def "delete() removes the object"() {
+        given:
+        def p = writablePath('prefix/old.txt')
+        s3Client.headObject(_ as HeadObjectRequest) >> HeadObjectResponse.builder().contentLength(1L).build()
+
+        when:
+        provider.delete(p)
+
+        then:
+        1 * s3Client.deleteObject({ DeleteObjectRequest r -> r.key() == 'prefix/old.txt' }) >> DeleteObjectResponse.builder().build()
+    }
+
+    def "delete() throws NoSuchFileException for a missing object"() {
+        given:
+        def p = writablePath('prefix/missing.txt')
+        nothingExists()
+
+        when:
+        provider.delete(p)
+
+        then:
+        thrown(NoSuchFileException)
+    }
+
+    def "delete() throws DirectoryNotEmptyException for a prefix with objects under it"() {
+        given:
+        def p = writablePath('prefix/dir')
+        s3Client.headObject(_ as HeadObjectRequest) >> { throw NO_SUCH_KEY }
+        s3Client.listObjectsV2(_ as ListObjectsV2Request) >> ListObjectsV2Response.builder()
+            .contents(S3Object.builder().key('prefix/dir/a.txt').size(1L).build()).build()
+
+        when:
+        provider.delete(p)
+
+        then:
+        thrown(DirectoryNotEmptyException)
+        0 * s3Client.deleteObject(*_)
+    }
+
+    def "delete() refuses on a read-only filesystem"() {
+        when:
+        provider.delete(s3Path('prefix/old.txt'))
+
+        then:
+        thrown(ReadOnlyFileSystemException)
+    }
+
+    def "newDirectoryStream() lists objects and sub-prefixes one level deep"() {
+        given:
+        def p = s3Path('prefix/dir')
+        s3Client.listObjectsV2(_ as ListObjectsV2Request) >> { ListObjectsV2Request r ->
+            assert r.prefix() == 'prefix/dir/'
+            assert r.delimiter() == '/'
+            ListObjectsV2Response.builder()
+                .contents(S3Object.builder().key('prefix/dir/a.txt').size(1L).build())
+                .commonPrefixes(CommonPrefix.builder().prefix('prefix/dir/sub/').build())
+                .build()
+        }
+
+        when:
+        def entries = provider.newDirectoryStream(p, { true }).collect { (it as LaminS3Path).key }
+
+        then:
+        entries == ['prefix/dir/a.txt', 'prefix/dir/sub']
+    }
+
+    def "newDirectoryStream() applies the filter"() {
+        given:
+        def p = s3Path('prefix/dir')
+        s3Client.listObjectsV2(_ as ListObjectsV2Request) >> ListObjectsV2Response.builder()
+            .contents(S3Object.builder().key('prefix/dir/a.txt').size(1L).build(),
+                      S3Object.builder().key('prefix/dir/b.csv').size(1L).build())
+            .build()
+
+        when:
+        def entries = provider.newDirectoryStream(p, { Path it -> it.toString().endsWith('.csv') }).collect { (it as LaminS3Path).key }
+
+        then:
+        entries == ['prefix/dir/b.csv']
+    }
+
+    def "upload() puts a local file"() {
+        given:
+        def p = writablePath('prefix/uploaded.txt')
+        Path tmpDir = Files.createTempDirectory('lamin-upload-test')
+        Path local = tmpDir.resolve('local.txt')
+        Files.write(local, 'local content'.bytes)
+        def puts = []
+        s3Client.putObject(_ as PutObjectRequest, _ as RequestBody) >> { PutObjectRequest r, RequestBody b ->
+            puts << [r.key(), new String(bytesOf(b))]
+            PutObjectResponse.builder().build()
+        }
+
+        when:
+        provider.upload(local, p)
+
+        then:
+        puts == [['prefix/uploaded.txt', 'local content']]
+
+        cleanup:
+        tmpDir.toFile().deleteDir()
+    }
+
+    def "upload() of a directory puts every file under the target"() {
+        given:
+        def p = writablePath('prefix/dir')
+        Path tmpDir = Files.createTempDirectory('lamin-upload-test')
+        Files.write(tmpDir.resolve('a.txt'), 'a'.bytes)
+        Files.createDirectories(tmpDir.resolve('sub'))
+        Files.write(tmpDir.resolve('sub/b.txt'), 'b'.bytes)
+        def keys = []
+        s3Client.putObject(_ as PutObjectRequest, _ as RequestBody) >> { PutObjectRequest r, RequestBody b ->
+            keys << r.key()
+            PutObjectResponse.builder().build()
+        }
+
+        when:
+        provider.upload(tmpDir, p)
+
+        then:
+        keys.sort() == ['prefix/dir/a.txt', 'prefix/dir/sub/b.txt']
+
+        cleanup:
+        tmpDir.toFile().deleteDir()
+    }
+
+    def "copy() between two lamin-s3 paths is a server-side copy"() {
+        given:
+        def source = writablePath('prefix/a.txt')
+        def target = writablePath('prefix/b.txt')
+        nothingExists()
+
+        when:
+        provider.copy(source, target)
+
+        then:
+        1 * s3Client.copyObject({ CopyObjectRequest r ->
+            r.sourceBucket() == 'bucket' && r.sourceKey() == 'prefix/a.txt' && r.destinationKey() == 'prefix/b.txt'
+        }) >> CopyObjectResponse.builder().build()
+    }
+
+    def "move() copies then deletes the source"() {
+        given:
+        def source = writablePath('prefix/a.txt')
+        def target = writablePath('prefix/b.txt')
+        s3Client.headObject(_ as HeadObjectRequest) >> { HeadObjectRequest r ->
+            if (r.key() == 'prefix/b.txt') throw NO_SUCH_KEY
+            HeadObjectResponse.builder().contentLength(1L).build()
+        }
+        s3Client.listObjectsV2(_ as ListObjectsV2Request) >> EMPTY_LISTING
+
+        when:
+        provider.move(source, target)
+
+        then:
+        1 * s3Client.copyObject(_ as CopyObjectRequest) >> CopyObjectResponse.builder().build()
+        1 * s3Client.deleteObject({ DeleteObjectRequest r -> r.key() == 'prefix/a.txt' }) >> DeleteObjectResponse.builder().build()
+    }
+
+    // ==================== Multipart uploads ====================
+
+    def "large files are uploaded in parts"() {
+        given:
+        def p = writablePath('prefix/big.bin')
+        nothingExists()
+        provider.uploader.multipartThreshold = 10
+        provider.uploader.minPartSize = 4
+        def parts = [:]
+        s3Client.createMultipartUpload(_ as CreateMultipartUploadRequest) >> CreateMultipartUploadResponse.builder().uploadId('upload-1').build()
+        s3Client.uploadPart(_ as UploadPartRequest, _ as RequestBody) >> { UploadPartRequest r, RequestBody b ->
+            assert r.uploadId() == 'upload-1'
+            parts[r.partNumber()] = new String(bytesOf(b))
+            UploadPartResponse.builder().eTag("etag-${r.partNumber()}".toString()).build()
+        }
+
+        when:
+        OutputStream out = provider.newOutputStream(p)
+        out.write('0123456789A'.bytes)
+        out.close()
+
+        then:
+        1 * s3Client.completeMultipartUpload({ CompleteMultipartUploadRequest r ->
+            r.multipartUpload().parts()*.partNumber() == [1, 2, 3] &&
+            r.multipartUpload().parts()*.eTag() == ['etag-1', 'etag-2', 'etag-3']
+        }) >> CompleteMultipartUploadResponse.builder().build()
+        parts == [1: '0123', 2: '4567', 3: '89A']
+        0 * s3Client.putObject(*_)
+    }
+
+    def "a failed multipart upload is aborted"() {
+        given:
+        def p = writablePath('prefix/big.bin')
+        nothingExists()
+        provider.uploader.multipartThreshold = 10
+        provider.uploader.minPartSize = 4
+        s3Client.createMultipartUpload(_ as CreateMultipartUploadRequest) >> CreateMultipartUploadResponse.builder().uploadId('upload-1').build()
+        s3Client.uploadPart(_ as UploadPartRequest, _ as RequestBody) >> { throw S3Exception.builder().message('boom').statusCode(500).build() }
+
+        when:
+        OutputStream out = provider.newOutputStream(p)
+        out.write('0123456789A'.bytes)
+        out.close()
+
+        then:
+        thrown(IOException)
+        1 * s3Client.abortMultipartUpload({ AbortMultipartUploadRequest r -> r.uploadId() == 'upload-1' })
+        0 * s3Client.completeMultipartUpload(*_)
+    }
+
+    def "the part size grows to stay under the part limit"() {
+        given:
+        def uploader = new LaminS3Uploader(minPartSize: 8L * 1024 * 1024, maxParts: 10_000)
+
+        expect:
+        uploader.partSizeFor(100L * 1024 * 1024) == 8L * 1024 * 1024
+        uploader.partSizeFor(5L * 1024 * 1024 * 1024 * 1024) == 525L * 1024 * 1024
     }
 
     // ==================== Provider mismatch ====================

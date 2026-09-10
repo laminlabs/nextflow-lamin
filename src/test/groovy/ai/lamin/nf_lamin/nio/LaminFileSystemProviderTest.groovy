@@ -23,15 +23,199 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.ProviderMismatchException
 
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
+import software.amazon.awssdk.services.s3.S3Client as AwsS3Client
+
+import ai.lamin.nf_lamin.LaminConfig
+import ai.lamin.nf_lamin.hub.CloudAccessResponse
+import ai.lamin.nf_lamin.hub.InstanceSettings
+import ai.lamin.nf_lamin.hub.LaminHub
+import ai.lamin.nf_lamin.instance.Instance
+
 /**
  * Tests for LaminFileSystemProvider
  */
 class LaminFileSystemProviderTest extends Specification {
 
+    /**
+     * Test subclass with the connection, credentials and lamin-s3 provider injected.
+     */
+    static class TestableLaminFileSystemProvider extends LaminFileSystemProvider {
+        Instance instance
+        LaminHub hub
+        LaminConfig config
+        CloudAccessResponse cloudAccess
+        LaminS3FileSystemProvider s3Provider
+        List<String> storagePathsRequested = []
+
+        @Override
+        Instance getInstance(String owner, String name) { instance }
+
+        @Override
+        protected LaminHub getHub() { hub }
+
+        @Override
+        protected LaminConfig getConfig() { config }
+
+        @Override
+        protected CloudAccessResponse getCachedCloudAccess(LaminHub hub, String storageRoot) { cloudAccess }
+
+        @Override
+        protected LaminS3FileSystemProvider getS3Provider() { s3Provider }
+
+        @Override
+        protected Path asStoragePath(String uri) {
+            storagePathsRequested << uri
+            return Paths.get('/resolved', uri.replaceFirst('^s3://', ''))
+        }
+    }
+
+    static class TestableLaminS3FileSystemProvider extends LaminS3FileSystemProvider {
+        AwsS3Client injectedClient
+
+        @Override
+        protected AwsS3Client createS3Client(AwsCredentialsProvider credentials, String region) {
+            return injectedClient
+        }
+    }
+
+    static final String STORAGE_ROOT = 's3://lamin-eu/JwMEKs04D9WJ'
+
     LaminFileSystemProvider provider
 
     def setup() {
         provider = new LaminFileSystemProvider()
+    }
+
+    InstanceSettings settings() {
+        new InstanceSettings([
+            id: '037ba1e0-8d80-4f91-a902-75a47735076a',
+            owner: 'laminlabs',
+            name: 'lamindata',
+            schema_id: '90541d56-0ee5-4757-b93a-8afa8ace1bd1',
+            api_url: 'https://api.example.org',
+            lnid: 'InstUid00001',
+            storage: [lnid: 'DefaultSt001', root: 's3://lamindata', type: 's3', region: 'us-east-1'],
+        ])
+    }
+
+    CloudAccessResponse cloudAccess(String role) {
+        new CloudAccessResponse([
+            Credentials: [AccessKeyId: 'ASIAEXAMPLE', SecretAccessKey: 'secret', SessionToken: 'token'],
+            StorageAccessibility: [storageRoot: STORAGE_ROOT, role: role, isPublic: false, isManaged: true],
+        ])
+    }
+
+    TestableLaminFileSystemProvider publishProvider(String role = 'write', Map configOpts = [instance: 'laminlabs/lamindata', api_key: 'key']) {
+        def instance = Mock(Instance) {
+            getSettings() >> settings()
+            getRecord(_) >> [id: 7, uid: 'JwMEKs04D9WJ', root: STORAGE_ROOT, type: 's3', region: 'eu-central-1',
+                             instance_uid: 'InstUid00001', space_id: 5]
+        }
+        new TestableLaminFileSystemProvider(
+            instance: instance,
+            hub: Mock(LaminHub),
+            config: new LaminConfig(configOpts, false),
+            cloudAccess: role ? cloudAccess(role) : new CloudAccessResponse([:]),
+            s3Provider: new TestableLaminS3FileSystemProvider(injectedClient: Mock(AwsS3Client)),
+        )
+    }
+
+    // ==================== Publish target resolution ====================
+
+    def "getPath resolves a storage URI to a writable lamin-s3 path"() {
+        given:
+        def provider = publishProvider('write')
+
+        when:
+        def path = provider.getPath(new URI('lamin://laminlabs/lamindata?storage=JwMEKs04D9WJ&prefix=results'))
+
+        then:
+        path instanceof LaminS3Path
+        ((LaminS3Path) path).key == 'JwMEKs04D9WJ/results'
+        with((LaminS3FileSystem) path.fileSystem) {
+            storageRoot == STORAGE_ROOT
+            !isReadOnly()
+            target.storageUid == 'JwMEKs04D9WJ'
+            target.spaceId == 5
+        }
+    }
+
+    def "getPath accepts the admin role for publishing"() {
+        given:
+        def provider = publishProvider('admin')
+
+        when:
+        def path = provider.getPath(new URI('lamin://laminlabs/lamindata?storage=JwMEKs04D9WJ'))
+
+        then:
+        path instanceof LaminS3Path
+        !path.fileSystem.isReadOnly()
+    }
+
+    def "getPath refuses a publish target when the hub grants only read access"() {
+        given:
+        def provider = publishProvider('read')
+
+        when:
+        provider.getPath(new URI('lamin://laminlabs/lamindata?storage=JwMEKs04D9WJ'))
+
+        then:
+        def e = thrown(IllegalArgumentException)
+        e.message.contains("grants only 'read' access")
+        e.message.contains(STORAGE_ROOT)
+    }
+
+    def "getPath refuses a publish target without an api key"() {
+        given:
+        def provider = publishProvider('write', [instance: 'laminlabs/lamindata', api_key: null])
+
+        when:
+        provider.getPath(new URI('lamin://laminlabs/lamindata?prefix=results'))
+
+        then:
+        def e = thrown(IllegalArgumentException)
+        e.message.contains('lamin.api_key')
+    }
+
+    def "getPath falls back to the standard provider when the hub has no credentials for the storage"() {
+        given:
+        def provider = publishProvider(null)
+
+        when:
+        def path = provider.getPath(new URI('lamin://laminlabs/lamindata?storage=JwMEKs04D9WJ&prefix=results'))
+
+        then:
+        provider.storagePathsRequested == ["${STORAGE_ROOT}/results".toString()]
+        path == Paths.get('/resolved/lamin-eu/JwMEKs04D9WJ/results')
+    }
+
+    def "getPath falls back to the standard provider when credential management is off"() {
+        given:
+        def provider = publishProvider('write', [instance: 'laminlabs/lamindata', api_key: 'key', features: [manage_s3_credentials: false]])
+
+        when:
+        provider.getPath(new URI('lamin://laminlabs/lamindata?storage=JwMEKs04D9WJ'))
+
+        then:
+        provider.storagePathsRequested == [STORAGE_ROOT]
+    }
+
+    def "getPath uses the default storage for a bare instance URI"() {
+        given:
+        def provider = publishProvider('write')
+        provider.cloudAccess = new CloudAccessResponse([
+            Credentials: [AccessKeyId: 'ASIAEXAMPLE', SecretAccessKey: 'secret', SessionToken: 'token'],
+            StorageAccessibility: [storageRoot: 's3://lamindata', role: 'write', isManaged: true],
+        ])
+
+        when:
+        def path = provider.getPath(new URI('lamin://laminlabs/lamindata'))
+
+        then:
+        path instanceof LaminS3Path
+        ((LaminS3Path) path).key == ''
+        ((LaminS3FileSystem) path.fileSystem).storageRoot == 's3://lamindata'
     }
 
     // ==================== getScheme Tests ====================

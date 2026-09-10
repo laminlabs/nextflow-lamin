@@ -63,3 +63,39 @@ validate-run:
 		-plugins "nf-lamin@$$VERSION" \
 		-output-dir $(OUTDIR) \
 		$(ARGS)
+
+# Instance and key prefix the publish validation workflows publish to
+INSTANCE ?= laminlabs/lamin-dev
+PREFIX ?= nf-lamin-test
+
+# Publish workflow outputs into a Lamin storage location (Nextflow 26.04+)
+# Usage: make validate-publish-run [INSTANCE=owner/instance] [PREFIX=key-prefix] [ARGS="extra args"]
+validate-publish-run:
+	BRANCH=$${BRANCH:-$$(git symbolic-ref --short HEAD 2>/dev/null || echo "main")}; \
+	VERSION=$${VERSION:-$$(awk -F"'" '/^version =/{print $$2}' build.gradle)}; \
+	echo "Publishing to lamin://$(INSTANCE)?prefix=$(PREFIX) with branch: $$BRANCH, version: $$VERSION"; \
+	nextflow -trace ai.lamin \
+		run laminlabs/nf-lamin \
+		-r $$BRANCH \
+		-latest \
+		-main-script validation/publish_run/main.nf \
+		-config configs/ci.config \
+		-plugins "nf-lamin@$$VERSION" \
+		-output-dir "lamin://$(INSTANCE)?prefix=$(PREFIX)" \
+		$(ARGS)
+
+# Publish workflow outputs via publishDir (Nextflow < 26.04)
+# Usage: make validate-publish-legacy [INSTANCE=owner/instance] [PREFIX=key-prefix] [ARGS="extra args"]
+validate-publish-legacy:
+	BRANCH=$${BRANCH:-$$(git symbolic-ref --short HEAD 2>/dev/null || echo "main")}; \
+	VERSION=$${VERSION:-$$(awk -F"'" '/^version =/{print $$2}' build.gradle)}; \
+	echo "Publishing to lamin://$(INSTANCE)?prefix=$(PREFIX) with branch: $$BRANCH, version: $$VERSION"; \
+	nextflow -trace ai.lamin \
+		run laminlabs/nf-lamin \
+		-r $$BRANCH \
+		-latest \
+		-main-script validation/publish_legacy/main.nf \
+		-config configs/ci.config \
+		-plugins "nf-lamin@$$VERSION" \
+		--output_dir "lamin://$(INSTANCE)?prefix=$(PREFIX)" \
+		$(ARGS)

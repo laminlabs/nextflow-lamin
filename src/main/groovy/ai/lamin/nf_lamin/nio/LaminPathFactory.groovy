@@ -39,8 +39,13 @@ class LaminPathFactory extends FileSystemPathFactory {
     /**
      * Parse a URI string into a Path.
      *
+     * Nextflow hands over the string as the user wrote it, so this is the one place a publish
+     * target's query string is guaranteed to arrive intact: Nextflow's own fallback folds it
+     * into the path.
+     *
      * @param uriString The URI string (e.g., "lamin://owner/instance/artifact/uid")
-     * @return A LaminPath if the URI is a lamin:// URI, null otherwise
+     * @return A path if the URI is a lamin:// URI, null otherwise
+     * @throws IllegalArgumentException if the URI is a lamin:// URI that cannot be parsed or resolved
      */
     @Override
     protected Path parseUri(String uriString) {
@@ -49,25 +54,28 @@ class LaminPathFactory extends FileSystemPathFactory {
             return null
         }
 
-        try {
-            URI uri = new URI(uriString)
-            return FileHelper.getOrCreateFileSystemFor(uri).provider().getPath(uri)
-        } catch (Exception e) {
-            log.debug "Failed to parse lamin URI: ${uriString}", e
-            return null
-        }
+        LaminUriParser parsed = LaminUriParser.parse(uriString)
+        LaminFileSystemProvider provider = FileHelper.getOrInstallProvider(LaminFileSystemProvider)
+        return provider.getPath(parsed)
     }
 
     /**
      * Convert a Path to a URI string.
      *
+     * A {@link LaminS3Path} is rendered as the {@code s3://} URI it stands for: the
+     * {@code lamin-s3://} scheme only exists inside this plugin, and this string ends up in
+     * logs and workflow output index files.
+     *
      * @param path The path to convert
-     * @return The URI string if the path is a LaminPath, null otherwise
+     * @return The URI string if the path belongs to this plugin, null otherwise
      */
     @Override
     protected String toUriString(Path path) {
         if (path instanceof LaminPath) {
             return ((LaminPath) path).toUriString()
+        }
+        if (path instanceof LaminS3Path) {
+            return ((LaminS3Path) path).toStorageUri()
         }
         return null
     }

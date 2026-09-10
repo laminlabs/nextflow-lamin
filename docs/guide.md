@@ -58,6 +58,24 @@ ln.Run.get("your-run-uid")
 Runs executed with `-with-tower` or launched from Seqera Platform additionally get `run.reference` set
 to the Platform watch URL, with `run.reference_type` set to `"Seqera"`.
 
+### Publishing outputs to Lamin storage
+
+Point the output directory at a `lamin://` URI to write the outputs straight into your instance's storage location:
+
+```bash tags=["skip-execution"]
+nextflow run <your-pipeline> -c lamin.config -output-dir 'lamin://your-org/your-instance?prefix=results'
+```
+
+Or per process, with `publishDir`:
+
+```groovy tags=["skip-execution"]
+publishDir 'lamin://your-org/your-instance?prefix=results', mode: 'copy'
+```
+
+Each published file is registered as an artifact in place, with its path relative to the storage root as the key. Add `?space=<uid>` or `?storage=<uid>` to publish into a specific space or storage location.
+
+→ See {doc}`/reference/lamin-uri` for the full URI grammar.
+
 → See {doc}`/reference` for the full `nf-lamin` configuration reference.
 
 → See {doc}`/reference/examples` for ready-to-run examples for existing pipelines.

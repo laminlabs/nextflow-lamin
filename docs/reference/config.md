@@ -226,7 +226,11 @@ lamin {
 }
 ```
 
-When `manage_s3_credentials = false`, the plugin resolves `lamin://` URIs to their underlying `s3://` paths and lets Nextflow handle authentication via the standard credential provider chain (environment variables, AWS credentials file, instance profile, etc.).
+When `manage_s3_credentials = false`, the plugin resolves `lamin://` URIs to their underlying `s3://` paths and lets Nextflow handle authentication via the standard credential provider chain (environment variables, AWS credentials file, instance profile, etc.). This applies to publishing as well as reading.
+
+### `space_uid` and publish targets
+
+A publish target that names a space (`lamin://owner/instance?space=<uid>`) decides the space of the artifacts published to it, because the storage location it resolves to is the one LaminDB associates with that space. The same holds for a `?storage=<uid>` that sits in a space. `lamin.space_uid` applies to everything else, including publish targets whose storage location is not in a space.
 
 ---
 
