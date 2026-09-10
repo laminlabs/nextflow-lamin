@@ -49,6 +49,9 @@ import ai.lamin.nf_lamin.hub.InstanceSettings
 import ai.lamin.nf_lamin.model.ArtifactAnnotation
 import ai.lamin.nf_lamin.model.RunStatus
 import ai.lamin.nf_lamin.nio.LaminPath
+import ai.lamin.nf_lamin.nio.LaminS3FileSystem
+import ai.lamin.nf_lamin.nio.LaminS3Path
+import ai.lamin.nf_lamin.nio.LaminStorageTarget
 import ai.lamin.nf_lamin.util.PathUtils
 import ai.lamin.nf_lamin.util.SeqeraPlatformHelper
 import ai.lamin.nf_lamin.util.TransformInfoHelper
@@ -96,6 +99,9 @@ final class LaminRunManager {
     // Written by createOutputArtifact; read by createOutputArtifact(labels) and trackWorkflowOutput
     private final Map<String, Map> publishedArtifactsByPath = Collections.synchronizedMap(new LinkedHashMap<String, Map>())
 
+    // Output names of index files announced by onWorkflowOutput before they were written
+    private final Map<String, String> pendingOutputNames = new ConcurrentHashMap<String, String>()
+
     // Annotations requested from the workflow via annotateArtifact(), keyed by annotation key
     private final Map<String, List<ArtifactAnnotation>> pendingAnnotations = new ConcurrentHashMap<String, List<ArtifactAnnotation>>()
 
@@ -129,6 +135,7 @@ final class LaminRunManager {
         LaminConnection.getInstance().reset()
         recordResolutionCache.clear()
         publishedArtifactsByPath.clear()
+        pendingOutputNames.clear()
         pendingAnnotations.clear()
         artifactsByAnnotationKey.clear()
         matchedAnnotationKeys.clear()
@@ -1086,7 +1093,23 @@ final class LaminRunManager {
             recordArtifactForAnnotation(cachedArtifact, source)
             return cachedArtifact
         }
-        return createOutputArtifact(path, null, labels, null, source)
+        return createOutputArtifact(path, null, labels, pendingOutputNames.remove(pathKey), source)
+    }
+
+    /**
+     * Record the output name of an index file, to be used when it is published.
+     *
+     * Called from {@link ai.lamin.nf_lamin.LaminObserver#onWorkflowOutput}. The index file is
+     * announced before Nextflow writes it, and rewritten on a re-run, so it can only be
+     * registered from the {@code onFilePublish} that follows.
+     *
+     * @param path       The index file path ({@code WorkflowOutputEvent.index})
+     * @param outputName The workflow output block name
+     */
+    void rememberOutputName(Path path, String outputName) {
+        if (path != null && outputName != null) {
+            pendingOutputNames.put(PathUtils.toUriKey(path), outputName)
+        }
     }
 
     /**
@@ -1687,6 +1710,16 @@ final class LaminRunManager {
             path = ((LaminPath) path).resolveToStorage()
         }
 
+        // A file published to a lamin:// target lives in the storage location the target
+        // resolved to, and that location decides the space when it has one
+        Integer spaceId = resolvedSpaceId
+        if (path instanceof LaminS3Path) {
+            LaminStorageTarget target = ((LaminS3FileSystem) path.fileSystem).target
+            if (target?.spaceId != null) {
+                spaceId = target.spaceId
+            }
+        }
+
         // Validate and extract optional parameters
         Integer runId = null
         if (params.containsKey('run_id')) {
@@ -1738,8 +1771,8 @@ final class LaminRunManager {
             if (kind != null) {
                 apiParams.put('kind', kind)
             }
-            if (resolvedSpaceId != null) {
-                apiParams.put('space_id', resolvedSpaceId)
+            if (spaceId != null) {
+                apiParams.put('space_id', spaceId)
             }
             if (resolvedBranchId != null) {
                 apiParams.put('branch_id', resolvedBranchId)
